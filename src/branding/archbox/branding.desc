@@ -1,0 +1,24 @@
+---
+componentName:  archbox
+
+strings:
+    productName:         Archbox Linux
+    shortProductName:    Archbox
+    version:             2018-02-11
+    shortVersion:        20180211
+    versionedName:       Archbox Linux 2018-02-11 "Calamari"
+    shortVersionedName:  Generic 1.0
+    bootloaderEntryName: Arch Linux
+    productUrl:          http://archbox-linux.github.io/
+
+images:
+    productLogo:         "archbox-logo-256.png"
+    productIcon:         "archbox-logo-256.png"
+    productWelcome:      "languages.png"
+
+slideshow:               "show.qml"
+
+style:
+   sidebarBackground:    "#1da060"
+   sidebarText:          "#FFFFFF"
+   sidebarTextSelect:    "#1da060"

@@ -1,0 +1,6 @@
+---
+type:       "job"
+name:       "removelivetrails"
+interface:  "python"
+requires:   []
+script:     "main.py"
