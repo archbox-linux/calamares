@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# === This file is part of Calamares - <http://github.com/calamares> ===
+# === This file is part of Calamares - <https://github.com/calamares> ===
 #
 #   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
 #   Copyright 2016, Teo Mrnjavac <teo@kde.org>
 #   Copyright 2017, Alf Gaida <agaida@siduction.org>
+#   Copyright 2019, Adriaan de Groot <groot@kde.org>
 #
 #   Calamares is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -25,6 +26,16 @@ import re
 import subprocess
 
 import libcalamares
+
+import gettext
+_ = gettext.translation("calamares-python",
+                        localedir=libcalamares.utils.gettext_path(),
+                        languages=libcalamares.utils.gettext_languages(),
+                        fallback=True).gettext
+
+
+def pretty_name():
+    return _("Writing fstab.")
 
 
 FSTAB_HEADER = """# /etc/fstab: static file system information.
@@ -151,7 +162,6 @@ class FstabGenerator(object):
             return None
 
         mapper_name = partition["luksMapperName"]
-        mount_point = partition["mountPoint"]
         luks_uuid = partition["luksUuid"]
         if not mapper_name or not luks_uuid:
             return None
@@ -208,7 +218,6 @@ class FstabGenerator(object):
 
                 else:
                     dct = self.generate_fstab_line_info(partition)
-
                     if dct:
                         self.print_fstab_line(dct, file=fstab_file)
 
@@ -223,21 +232,32 @@ class FstabGenerator(object):
                 self.print_fstab_line(dct, file=fstab_file)
 
     def generate_fstab_line_info(self, partition):
-        """ Generates information for each fstab entry. """
+        """
+        Generates information (a dictionary of fstab-fields)
+        for the given @p partition.
+        """
+        # Some "fs" names need special handling in /etc/fstab, so remap them.
         filesystem = partition["fs"].lower()
+        filesystem = FS_MAP.get(filesystem, filesystem)
         has_luks = "luksMapperName" in partition
         mount_point = partition["mountPoint"]
         disk_name = disk_name_for_partition(partition)
         is_ssd = disk_name in self.ssd_disks
-        filesystem = FS_MAP.get(filesystem, filesystem)
 
+        # Swap partitions are called "linuxswap" by parted.
+        # That "fs" is visible in GS, but that gets mapped
+        # to "swap", above, because that's the spelling needed in /etc/fstab
         if not mount_point and not filesystem == "swap":
             return None
         if not mount_point:
             mount_point = "swap"
 
-        options = self.mount_options.get(filesystem,
-                                         self.mount_options["default"])
+        if filesystem == "swap" and not partition.get("claimed", None):
+            libcalamares.utils.debug("Ignoring foreign swap {!s} {!s}".format(disk_name, partition.get("uuid", None)))
+            return None
+
+        options = self.get_mount_options(filesystem, mount_point)
+
         if is_ssd:
             extra = self.ssd_extra_mount_options.get(filesystem)
 
@@ -255,12 +275,12 @@ class FstabGenerator(object):
             self.root_is_ssd = is_ssd
 
         if filesystem == "btrfs" and "subvol" in partition:
-            options="subvol={},".format(partition["subvol"]) + options
+            options = "subvol={},".format(partition["subvol"]) + options
 
         if has_luks:
-            device="/dev/mapper/" + partition["luksMapperName"]
+            device = "/dev/mapper/" + partition["luksMapperName"]
         else:
-            device="UUID=" + partition["uuid"]
+            device = "UUID=" + partition["uuid"]
 
         return dict(device=device,
                     mount_point=mount_point,
@@ -285,6 +305,16 @@ class FstabGenerator(object):
             if partition["mountPoint"]:
                 mkdir_p(self.root_mount_point + partition["mountPoint"])
 
+    def get_mount_options(self, filesystem, mount_point):
+        efiMountPoint = libcalamares.globalstorage.value("efiSystemPartition")
+        job_config = libcalamares.job.configuration
+
+        if (mount_point == efiMountPoint and "efiMountOptions" in job_config):
+            return job_config["efiMountOptions"]
+
+        return self.mount_options.get(filesystem,
+                                      self.mount_options["default"])
+
 
 def run():
     """ Configures fstab.
@@ -295,6 +325,20 @@ def run():
     conf = libcalamares.job.configuration
     partitions = global_storage.value("partitions")
     root_mount_point = global_storage.value("rootMountPoint")
+
+    if not partitions:
+        libcalamares.utils.warning("partitions is empty, {!s}"
+                                   .format(partitions))
+        return (_("Configuration Error"),
+                _("No partitions are defined for <pre>{!s}</pre> to use.")
+                .format("fstab"))
+    if not root_mount_point:
+        libcalamares.utils.warning("rootMountPoint is empty, {!s}"
+                                   .format(root_mount_point))
+        return (_("Configuration Error"),
+                _("No root mount point is given for <pre>{!s}</pre> to use.")
+                .format("fstab"))
+
     mount_options = conf["mountOptions"]
     ssd_extra_mount_options = conf.get("ssdExtraMountOptions", {})
     crypttab_options = conf.get("crypttabOptions", "luks")

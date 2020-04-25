@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -20,21 +20,16 @@
 #ifndef PROGRESSTREEVIEW_H
 #define PROGRESSTREEVIEW_H
 
-#include <QTreeView>
-
-class ProgressTreeDelegate;
+#include <QListView>
 
 /**
  * @brief The ProgressTreeView class is a modified QTreeView which displays the
  * available view steps and the user's progress through them.
- * @note singleton, only access through ProgressTreeView::instance().
  */
-class ProgressTreeView : public QTreeView
+class ProgressTreeView : public QListView
 {
     Q_OBJECT
 public:
-    static ProgressTreeView* instance();
-
     explicit ProgressTreeView( QWidget* parent = nullptr );
     virtual ~ProgressTreeView() override;
 
@@ -42,10 +37,6 @@ public:
      * @brief setModel assigns a model to this view.
      */
     void setModel( QAbstractItemModel* model ) override;
-
-private:
-    static ProgressTreeView* s_instance;
-    ProgressTreeDelegate* m_delegate;
 };
 
-#endif // PROGRESSTREEVIEW_H
+#endif  // PROGRESSTREEVIEW_H

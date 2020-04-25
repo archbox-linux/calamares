@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2016, Teo Mrnjavac <teo@kde.org>
  *
@@ -32,12 +32,11 @@ class PythonQtJobResult : public QObject, public Calamares::JobResult
 {
     Q_OBJECT
 public:
-    explicit PythonQtJobResult( bool ok,
-                                const QString& message,
-                                const QString& details )
+    explicit PythonQtJobResult( bool ok, const QString& message, const QString& details )
         : QObject( nullptr )
-        , Calamares::JobResult( ok, message, details )
-    {}
+        , Calamares::JobResult( message, details, ok ? 0 : Calamares::JobResult::GenericError )
+    {
+    }
 };
 
 
@@ -53,13 +52,11 @@ public:
     Calamares::JobResult exec() override;
 
 private:
-    explicit PythonQtJob( PythonQtObjectPtr cxt,
-                          PythonQtObjectPtr pyJob,
-                          QObject* parent = nullptr );
-    friend class Calamares::PythonQtViewStep; // only this one can call the ctor
+    explicit PythonQtJob( PythonQtObjectPtr cxt, PythonQtObjectPtr pyJob, QObject* parent = nullptr );
+    friend class Calamares::PythonQtViewStep;  // only this one can call the ctor
 
     PythonQtObjectPtr m_cxt;
     PythonQtObjectPtr m_pyJob;
 };
 
-#endif // PYTHONQTJOB_H
+#endif  // PYTHONQTJOB_H

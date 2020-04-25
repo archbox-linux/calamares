@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015-2016, Teo Mrnjavac <teo@kde.org>
  *
@@ -32,6 +32,8 @@ BootInfoWidget::BootInfoWidget( QWidget* parent )
     , m_bootIcon( new QLabel )
     , m_bootLabel( new QLabel )
 {
+    m_bootIcon->setObjectName("bootInfoIcon");
+    m_bootLabel->setObjectName("bootInfoLabel");
     QHBoxLayout* mainLayout = new QHBoxLayout;
     setLayout( mainLayout );
 
@@ -47,7 +49,7 @@ BootInfoWidget::BootInfoWidget( QWidget* parent )
     m_bootIcon->setPixmap( CalamaresUtils::defaultPixmap( CalamaresUtils::BootEnvironment,
                                                           CalamaresUtils::Original,
                                                           iconSize ) );
-
+    
     QFontMetrics fm = QFontMetrics( QFont() );
     m_bootLabel->setMinimumWidth( fm.boundingRect( "BIOS" ).width() + CalamaresUtils::defaultFontHeight() / 2 );
     m_bootLabel->setAlignment( Qt::AlignCenter );

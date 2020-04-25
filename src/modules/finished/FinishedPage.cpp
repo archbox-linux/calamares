@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2019, Collabora Ltd <arnaud.ferraris@collabora.com>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -33,14 +34,13 @@
 #include <QProcess>
 
 #include "Branding.h"
-
+#include "Settings.h"
 
 FinishedPage::FinishedPage( QWidget* parent )
     : QWidget( parent )
     , ui( new Ui::FinishedPage )
-    , m_restartSetUp( false )
+    , m_mode( FinishedViewStep::RestartMode::UserUnchecked )
 {
-    cDebug() << "FinishedPage()";
     ui->setupUi( this );
 
     ui->mainText->setAlignment( Qt::AlignCenter );
@@ -49,27 +49,45 @@ FinishedPage::FinishedPage( QWidget* parent )
 
     CALAMARES_RETRANSLATE(
         ui->retranslateUi( this );
-        ui->mainText->setText( tr( "<h1>All done.</h1><br/>"
-                                   "%1 has been installed on your computer.<br/>"
-                                   "You may now restart into your new system, or continue "
-                                   "using the %2 Live environment." )
-                               .arg( *Calamares::Branding::VersionedName )
-                               .arg( *Calamares::Branding::ProductName ) );
+        if ( Calamares::Settings::instance()->isSetupMode() )
+        {
+            ui->mainText->setText( tr( "<h1>All done.</h1><br/>"
+                                       "%1 has been set up on your computer.<br/>"
+                                       "You may now start using your new system." )
+                                   .arg( *Calamares::Branding::VersionedName ) );
+            ui->restartCheckBox->setToolTip( tr ( "<html><head/><body>"
+                                                  "<p>When this box is checked, your system will "
+                                                  "restart immediately when you click on "
+                                                  "<span style=\"font-style:italic;\">Done</span> "
+                                                  "or close the setup program.</p></body></html>" ) );
+       }
+       else
+       {
+            ui->mainText->setText( tr( "<h1>All done.</h1><br/>"
+                                       "%1 has been installed on your computer.<br/>"
+                                       "You may now restart into your new system, or continue "
+                                       "using the %2 Live environment." )
+                                   .arg( *Calamares::Branding::VersionedName, *Calamares::Branding::ProductName ) );
+            ui->restartCheckBox->setToolTip( tr ( "<html><head/><body>"
+                                                  "<p>When this box is checked, your system will "
+                                                  "restart immediately when you click on "
+                                                  "<span style=\"font-style:italic;\">Done</span> "
+                                                  "or close the installer.</p></body></html>" ) );
+       }
     )
 }
 
 
 void
-FinishedPage::setRestartNowEnabled( bool enabled )
+FinishedPage::setRestart( FinishedViewStep::RestartMode mode )
 {
-    ui->restartCheckBox->setVisible( enabled );
-}
+    using Mode = FinishedViewStep::RestartMode;
 
+    m_mode = mode;
 
-void
-FinishedPage::setRestartNowChecked( bool checked )
-{
-    ui->restartCheckBox->setChecked( checked );
+    ui->restartCheckBox->setVisible( mode != Mode::Never );
+    ui->restartCheckBox->setEnabled( mode != Mode::Always );
+    ui->restartCheckBox->setChecked( ( mode == Mode::Always ) || ( mode == Mode::UserChecked ) );
 }
 
 
@@ -83,17 +101,21 @@ FinishedPage::setRestartNowCommand( const QString& command )
 void
 FinishedPage::setUpRestart()
 {
-    cDebug() << "FinishedPage::setUpRestart()";
-    if ( !m_restartSetUp )
-    {
-        connect( qApp, &QApplication::aboutToQuit,
-                 this, [this]
-        {
-            if ( ui->restartCheckBox->isVisible() &&
-                    ui->restartCheckBox->isChecked() )
-                QProcess::execute( "/bin/sh", { "-c", m_restartNowCommand } );
-        } );
-    }
+    cDebug() << "FinishedPage::setUpRestart(), Quit button"
+        << "setup=" << FinishedViewStep::modeName( m_mode )
+        << "command=" << m_restartNowCommand;
+
+    connect( qApp, &QApplication::aboutToQuit,
+            [this]()
+            {
+                if ( ui->restartCheckBox->isVisible() &&
+                        ui->restartCheckBox->isChecked() )
+                {
+                    cDebug() << "Running restart command" << m_restartNowCommand;
+                    QProcess::execute( "/bin/sh", { "-c", m_restartNowCommand } );
+                }
+            }
+           );
 }
 
 
@@ -106,11 +128,18 @@ FinishedPage::focusInEvent( QFocusEvent* e )
 void
 FinishedPage::onInstallationFailed( const QString& message, const QString& details )
 {
-    Q_UNUSED( details );
-    ui->mainText->setText( tr( "<h1>Installation Failed</h1><br/>"
-                               "%1 has not been installed on your computer.<br/>"
-                               "The error message was: %2." )
-                           .arg( *Calamares::Branding::VersionedName )
-                           .arg( message ) );
-    setRestartNowEnabled( false );
+    Q_UNUSED( details )
+    if ( Calamares::Settings::instance()->isSetupMode() )
+        ui->mainText->setText( tr( "<h1>Setup Failed</h1><br/>"
+                                   "%1 has not been set up on your computer.<br/>"
+                                   "The error message was: %2." )
+                               .arg( *Calamares::Branding::VersionedName )
+                               .arg( message ) );
+    else
+        ui->mainText->setText( tr( "<h1>Installation Failed</h1><br/>"
+                                   "%1 has not been installed on your computer.<br/>"
+                                   "The error message was: %2." )
+                               .arg( *Calamares::Branding::VersionedName )
+                               .arg( message ) );
+    setRestart( FinishedViewStep::RestartMode::Never );
 }

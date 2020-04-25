@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *
@@ -21,18 +21,19 @@
 #include <QApplication>
 
 
-ClickableLabel::ClickableLabel( QWidget* parent, Qt::WindowFlags f )
-    : QLabel( parent, f )
-{}
+ClickableLabel::ClickableLabel( QWidget* parent )
+    : QLabel( parent )
+{
+}
 
 
-ClickableLabel::ClickableLabel( const QString& text, QWidget* parent, Qt::WindowFlags f )
-    : QLabel( text, parent, f )
-{}
+ClickableLabel::ClickableLabel( const QString& text, QWidget* parent )
+    : QLabel( text, parent )
+{
+}
 
 
-ClickableLabel::~ClickableLabel()
-{}
+ClickableLabel::~ClickableLabel() {}
 
 
 void
@@ -48,5 +49,7 @@ ClickableLabel::mouseReleaseEvent( QMouseEvent* event )
 {
     QLabel::mouseReleaseEvent( event );
     if ( m_time.elapsed() < qApp->doubleClickInterval() )
+    {
         emit clicked();
+    }
 }

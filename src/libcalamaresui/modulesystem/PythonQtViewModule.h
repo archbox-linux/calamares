@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2016, Teo Mrnjavac <teo@kde.org>
  *
@@ -19,10 +19,11 @@
 #ifndef CALAMARES_PYTHONQTVIEWMODULE_H
 #define CALAMARES_PYTHONQTVIEWMODULE_H
 
-#include "UiDllMacro.h"
+#include "DllMacro.h"
 #include "Module.h"
 
-namespace Calamares {
+namespace Calamares
+{
 
 class ViewStep;
 
@@ -33,13 +34,12 @@ public:
     Interface interface() const override;
 
     void loadSelf() override;
-    QList< job_ptr > jobs() const override;
+    JobList jobs() const override;
 
 protected:
     void initFrom( const QVariantMap& moduleDescriptor ) override;
 
 private:
-    friend class Module; //so only the superclass can instantiate
     explicit PythonQtViewModule();
     virtual ~PythonQtViewModule();
 
@@ -47,8 +47,13 @@ private:
 
     QString m_scriptFileName;
     QString m_workingPath;
+
+    friend Module* Calamares::moduleFromDescriptor( const ModuleSystem::Descriptor& moduleDescriptor,
+                                                    const QString& instanceId,
+                                                    const QString& configFileName,
+                                                    const QString& moduleDirectory );
 };
 
-} // namespace Calamares
+}  // namespace Calamares
 
-#endif // CALAMARES_PYTHONQTVIEWMODULE_H
+#endif  // CALAMARES_PYTHONQTVIEWMODULE_H

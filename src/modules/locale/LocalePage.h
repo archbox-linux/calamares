@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,11 +20,14 @@
 #ifndef LOCALEPAGE_H
 #define LOCALEPAGE_H
 
-#include "Typedefs.h"
-
 #include "LocaleConfiguration.h"
 
+#include "Job.h"
+#include "locale/TimeZone.h"
+
 #include <QWidget>
+
+#include <memory>
 
 class QComboBox;
 class QLabel;
@@ -37,13 +41,11 @@ public:
     explicit LocalePage( QWidget* parent = nullptr );
     virtual ~LocalePage();
 
-    void init( const QString& initialRegion,
-               const QString& initialZone,
-               const QString& localeGenPath );
+    void init( const QString& initialRegion, const QString& initialZone, const QString& localeGenPath );
 
     QString prettyStatus() const;
 
-    QList< Calamares::job_ptr > createJobs();
+    Calamares::JobList createJobs();
 
     QMap< QString, QString > localesMap();
 
@@ -51,14 +53,29 @@ public:
 
 private:
     LocaleConfiguration guessLocaleConfiguration() const;
-    QString prettyLCLocale( const QString& localesMap ) const;
 
     // For the given locale config, return two strings describing
     // the settings for language and numbers.
     std::pair< QString, QString > prettyLocaleStatus( const LocaleConfiguration& ) const;
 
+    /** @brief Update the GS *locale* key with the selected system language.
+     *
+     * This uses whatever is set in m_selectedLocaleConfiguration as the language,
+     * and writes it to GS *locale* key (as a string, in BCP47 format).
+     */
+    void updateGlobalLocale();
     void updateGlobalStorage();
     void updateLocaleLabels();
+
+    void regionChanged( int currentIndex );
+    void zoneChanged( int currentIndex );
+    void locationChanged( const CalamaresUtils::Locale::TZZone* location );
+    void changeLocale();
+    void changeFormats();
+
+    // Dynamically, QList< TZRegion* >
+    CalamaresUtils::Locale::CStringPairList m_regionList;
+    std::unique_ptr< CalamaresUtils::Locale::CStringListModel > m_regionModel;
 
     TimeZoneWidget* m_tzWidget;
     QComboBox* m_regionCombo;
@@ -78,4 +95,4 @@ private:
     bool m_blockTzWidgetSet;
 };
 
-#endif // LOCALEPAGE_H
+#endif  // LOCALEPAGE_H

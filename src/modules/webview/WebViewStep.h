@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015, Rohan Garg <rohan@garg.io>
  *   Copyright 2016, Teo Mrnjavac <teo@kde.org>
@@ -23,10 +23,10 @@
 
 #include "WebViewConfig.h"
 
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
 
-#include <PluginDllMacro.h>
+#include "DllMacro.h"
 
 #include <QVariantMap>
 
@@ -50,8 +50,6 @@ public:
 
     QWidget* widget() override;
 
-    void next() override;
-    void back() override;
     void onActivate() override;
 
     bool isNextEnabled() const override;

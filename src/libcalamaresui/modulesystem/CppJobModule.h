@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2016, Kevin Kofler <kevin.kofler@chello.at>
@@ -21,8 +21,8 @@
 #ifndef CALAMARES_CPPJOBMODULE_H
 #define CALAMARES_CPPJOBMODULE_H
 
-#include "UiDllMacro.h"
-#include "Module.h"
+#include "DllMacro.h"
+#include "modulesystem/Module.h"
 
 class QPluginLoader;
 
@@ -36,20 +36,24 @@ public:
     Interface interface() const override;
 
     void loadSelf() override;
-    QList< job_ptr > jobs() const override;
+    JobList jobs() const override;
 
 protected:
     void initFrom( const QVariantMap& moduleDescriptor ) override;
 
 private:
-    friend class Module; //so only the superclass can instantiate
     explicit CppJobModule();
     virtual ~CppJobModule() override;
 
     QPluginLoader* m_loader;
     job_ptr m_job;
+
+    friend Module* Calamares::moduleFromDescriptor( const ModuleSystem::Descriptor& moduleDescriptor,
+                                                    const QString& instanceId,
+                                                    const QString& configFileName,
+                                                    const QString& moduleDirectory );
 };
 
-} // namespace Calamares
+}  // namespace Calamares
 
-#endif // CALAMARES_CPPJOBMODULE_H
+#endif  // CALAMARES_CPPJOBMODULE_H

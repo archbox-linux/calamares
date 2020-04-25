@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014,      Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2015-2016, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2018-2019 Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -20,53 +21,21 @@
 #include "core/KPMHelpers.h"
 
 #include "core/PartitionInfo.h"
-#include "core/PartitionIterator.h"
+
+#include "partition/PartitionIterator.h"
+#include "utils/Logger.h"
 
 // KPMcore
+#include <kpmcore/backend/corebackendmanager.h>
 #include <kpmcore/core/device.h>
 #include <kpmcore/core/partition.h>
 #include <kpmcore/fs/filesystemfactory.h>
-#include <kpmcore/backend/corebackendmanager.h>
 #include <kpmcore/fs/luks.h>
 
-#include <QDebug>
-
+using CalamaresUtils::Partition::PartitionIterator;
 
 namespace KPMHelpers
 {
-
-static bool s_KPMcoreInited = false;
-
-bool
-initKPMcore()
-{
-    if ( s_KPMcoreInited )
-        return true;
-
-    QByteArray backendName = qgetenv( "KPMCORE_BACKEND" );
-    if ( !CoreBackendManager::self()->load( backendName.isEmpty() ? CoreBackendManager::defaultBackendName() : backendName ) )
-    {
-        qWarning() << "Failed to load backend plugin" << backendName;
-        return false;
-    }
-    s_KPMcoreInited = true;
-    return true;
-}
-
-
-bool
-isPartitionFreeSpace( Partition* partition )
-{
-    return partition->roles().has( PartitionRole::Unallocated );
-}
-
-
-bool
-isPartitionNew( Partition* partition )
-{
-    return partition->state() == Partition::StateNew;
-}
-
 
 Partition*
 findPartitionByMountPoint( const QList< Device* >& devices, const QString& mountPoint )
@@ -74,35 +43,10 @@ findPartitionByMountPoint( const QList< Device* >& devices, const QString& mount
     for ( auto device : devices )
         for ( auto it = PartitionIterator::begin( device ); it != PartitionIterator::end( device ); ++it )
             if ( PartitionInfo::mountPoint( *it ) == mountPoint )
+            {
                 return *it;
+            }
     return nullptr;
-}
-
-
-Partition*
-findPartitionByPath( const QList< Device* >& devices, const QString& path )
-{
-    if ( path.simplified().isEmpty() )
-        return nullptr;
-
-    for ( auto device : devices )
-        for ( auto it = PartitionIterator::begin( device ); it != PartitionIterator::end( device ); ++it )
-            if ( ( *it )->partitionPath() == path.simplified() )
-                return *it;
-    return nullptr;
-}
-
-
-QList< Partition* >
-findPartitions( const QList< Device* >& devices,
-                std::function< bool ( Partition* ) > criterionFunction )
-{
-    QList< Partition* > results;
-    for ( auto device : devices )
-        for ( auto it = PartitionIterator::begin( device ); it != PartitionIterator::end( device ); ++it )
-            if ( criterionFunction( *it ) )
-                results.append( *it );
-    return results;
 }
 
 
@@ -115,23 +59,19 @@ createNewPartition( PartitionNode* parent,
                     qint64 lastSector,
                     PartitionTable::Flags flags )
 {
-    FileSystem* fs = FileSystemFactory::create( fsType, firstSector, lastSector
-#ifdef WITH_KPMCORE22
-                                                ,device.logicalSize()
-#endif
-    );
-    return new Partition(
-               parent,
-               device,
-               role,
-               fs, fs->firstSector(), fs->lastSector(),
-               QString() /* path */,
-               PartitionTable::FlagNone /* availableFlags */,
-               QString() /* mountPoint */,
-               false /* mounted */,
-               flags /* activeFlags */,
-               Partition::StateNew
-           );
+    FileSystem* fs = FileSystemFactory::create( fsType, firstSector, lastSector, device.logicalSize() );
+    return new Partition( parent,
+                          device,
+                          role,
+                          fs,
+                          fs->firstSector(),
+                          fs->lastSector(),
+                          QString() /* path */,
+                          KPM_PARTITION_FLAG( None ) /* availableFlags */,
+                          QString() /* mountPoint */,
+                          false /* mounted */,
+                          flags /* activeFlags */,
+                          KPM_PARTITION_STATE( New ) );
 }
 
 
@@ -147,19 +87,15 @@ createNewEncryptedPartition( PartitionNode* parent,
 {
     PartitionRole::Roles newRoles = role.roles();
     if ( !role.has( PartitionRole::Luks ) )
+    {
         newRoles |= PartitionRole::Luks;
+    }
 
     FS::luks* fs = dynamic_cast< FS::luks* >(
-                           FileSystemFactory::create( FileSystem::Luks,
-                                                      firstSector,
-                                                      lastSector
-#ifdef WITH_KPMCORE22
-                                                     ,device.logicalSize()
-#endif
-                                                      ) );
+        FileSystemFactory::create( FileSystem::Luks, firstSector, lastSector, device.logicalSize() ) );
     if ( !fs )
     {
-        qDebug() << "ERROR: cannot create LUKS filesystem. Giving up.";
+        cError() << "cannot create LUKS filesystem. Giving up.";
         return nullptr;
     }
 
@@ -168,13 +104,15 @@ createNewEncryptedPartition( PartitionNode* parent,
     Partition* p = new Partition( parent,
                                   device,
                                   PartitionRole( newRoles ),
-                                  fs, fs->firstSector(), fs->lastSector(),
+                                  fs,
+                                  fs->firstSector(),
+                                  fs->lastSector(),
                                   QString() /* path */,
-                                  PartitionTable::FlagNone /* availableFlags */,
+                                  KPM_PARTITION_FLAG( None ) /* availableFlags */,
                                   QString() /* mountPoint */,
                                   false /* mounted */,
                                   flags /* activeFlags */,
-                                  Partition::StateNew );
+                                  KPM_PARTITION_STATE( New ) );
     return p;
 }
 
@@ -183,13 +121,7 @@ Partition*
 clonePartition( Device* device, Partition* partition )
 {
     FileSystem* fs = FileSystemFactory::create(
-                         partition->fileSystem().type(),
-                         partition->firstSector(),
-                         partition->lastSector()
-#ifdef WITH_KPMCORE22
-                        ,device->logicalSize()
-#endif
-                     );
+        partition->fileSystem().type(), partition->firstSector(), partition->lastSector(), device->logicalSize() );
     return new Partition( partition->parent(),
                           *device,
                           partition->roles(),
@@ -200,48 +132,4 @@ clonePartition( Device* device, Partition* partition )
                           partition->activeFlags() );
 }
 
-
-QString
-prettyNameForFileSystemType( FileSystem::Type t )
-{
-    switch ( t )
-    {
-    case FileSystem::Unknown:
-        return QObject::tr( "unknown" );
-    case FileSystem::Extended:
-        return QObject::tr( "extended" );
-    case FileSystem::Unformatted:
-        return QObject::tr( "unformatted" );
-    case FileSystem::LinuxSwap:
-        return QObject::tr( "swap" );
-    case FileSystem::Fat16:
-    case FileSystem::Fat32:
-    case FileSystem::Ntfs:
-    case FileSystem::Xfs:
-    case FileSystem::Jfs:
-    case FileSystem::Hfs:
-    case FileSystem::Ufs:
-    case FileSystem::Hpfs:
-    case FileSystem::Luks:
-    case FileSystem::Ocfs2:
-    case FileSystem::Zfs:
-    case FileSystem::Nilfs2:
-        return FileSystem::nameForType( t ).toUpper();
-    case FileSystem::ReiserFS:
-        return "ReiserFS";
-    case FileSystem::Reiser4:
-        return "Reiser4";
-    case FileSystem::HfsPlus:
-        return "HFS+";
-    case FileSystem::Btrfs:
-        return "Btrfs";
-    case FileSystem::Exfat:
-        return "exFAT";
-    case FileSystem::Lvm2_PV:
-        return "LVM PV";
-    default:
-        return FileSystem::nameForType( t );
-    }
-}
-
-} // namespace
+}  // namespace KPMHelpers

@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2016, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2018, 2020, Adriaan de Groot <groot@kde.org>
  *
  *   Flags handling originally from KDE Partition Manager,
  *   Copyright 2008-2009, Volker Lanz <vl@fidra.de>
@@ -21,30 +22,31 @@
  *   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gui/EditExistingPartitionDialog.h>
+#include "EditExistingPartitionDialog.h"
+#include "ui_EditExistingPartitionDialog.h"
 
-#include <core/ColorUtils.h>
-#include <core/PartitionCoreModule.h>
-#include <core/PartitionInfo.h>
+#include "core/ColorUtils.h"
+#include "core/PartitionCoreModule.h"
+#include "core/PartitionInfo.h"
 #include "core/PartUtils.h"
-#include <core/KPMHelpers.h>
-#include <gui/PartitionSizeController.h>
+#include "gui/PartitionDialogHelpers.h"
+#include "gui/PartitionSizeController.h"
 
-#include <ui_EditExistingPartitionDialog.h>
-
-#include <utils/Logger.h>
 #include "GlobalStorage.h"
 #include "JobQueue.h"
+#include "partition/FileSystem.h"
+#include "utils/Logger.h"
 
-// KPMcore
 #include <kpmcore/core/device.h>
 #include <kpmcore/core/partition.h>
 #include <kpmcore/fs/filesystemfactory.h>
 
-// Qt
 #include <QComboBox>
 #include <QDir>
 #include <QPushButton>
+
+using CalamaresUtils::Partition::untranslatedFS;
+using CalamaresUtils::Partition::userVisibleFS;
 
 EditExistingPartitionDialog::EditExistingPartitionDialog( Device* device, Partition* partition, const QStringList& usedMountPoints, QWidget* parentWidget )
     : QDialog( parentWidget )
@@ -55,19 +57,12 @@ EditExistingPartitionDialog::EditExistingPartitionDialog( Device* device, Partit
     , m_usedMountPoints( usedMountPoints )
 {
     m_ui->setupUi( this );
-
-    QStringList mountPoints = { "/", "/boot", "/home", "/opt", "/usr", "/var" };
-    if ( PartUtils::isEfiSystem() )
-        mountPoints << Calamares::JobQueue::instance()->globalStorage()->value( "efiSystemPartition" ).toString();
-    mountPoints.removeDuplicates();
-    mountPoints.sort();
-    m_ui->mountPointComboBox->addItems( mountPoints );
+    standardMountPoints( *(m_ui->mountPointComboBox), PartitionInfo::mountPoint( partition ) );
 
     QColor color = ColorUtils::colorForPartition( m_partition );
     m_partitionSizeController->init( m_device, m_partition, color );
     m_partitionSizeController->setSpinBox( m_ui->sizeSpinBox );
 
-    m_ui->mountPointComboBox->setCurrentText( PartitionInfo::mountPoint( partition ) );
     connect( m_ui->mountPointComboBox, &QComboBox::currentTextChanged,
              this, &EditExistingPartitionDialog::checkMountPointSelection );
 
@@ -82,7 +77,7 @@ EditExistingPartitionDialog::EditExistingPartitionDialog( Device* device, Partit
         m_ui->fileSystemComboBox->setEnabled( doFormat );
 
         if ( !doFormat )
-            m_ui->fileSystemComboBox->setCurrentText( m_partition->fileSystem().name() );
+            m_ui->fileSystemComboBox->setCurrentText( userVisibleFS( m_partition->fileSystem() ) );
 
         updateMountPointPicker();
     } );
@@ -98,21 +93,30 @@ EditExistingPartitionDialog::EditExistingPartitionDialog( Device* device, Partit
     for ( auto fs : FileSystemFactory::map() )
     {
         if ( fs->supportCreate() != FileSystem::cmdSupportNone && fs->type() != FileSystem::Extended )
-            fsNames << fs->name();
+            fsNames << userVisibleFS( fs ); // For the combo box
     }
     m_ui->fileSystemComboBox->addItems( fsNames );
 
-    if ( fsNames.contains( m_partition->fileSystem().name() ) )
-        m_ui->fileSystemComboBox->setCurrentText( m_partition->fileSystem().name() );
+    FileSystem::Type defaultFSType;
+    QString untranslatedFSName = PartUtils::findFS(
+                                         Calamares::JobQueue::instance()->
+                                         globalStorage()->
+                                         value( "defaultFileSystemType" ).toString(), &defaultFSType );
+    if ( defaultFSType == FileSystem::Type::Unknown )
+    {
+        defaultFSType = FileSystem::Type::Ext4;
+    }
+
+    QString thisFSNameForUser = userVisibleFS( m_partition->fileSystem() );
+    if ( fsNames.contains( thisFSNameForUser ) )
+        m_ui->fileSystemComboBox->setCurrentText( thisFSNameForUser );
     else
-        m_ui->fileSystemComboBox->setCurrentText( Calamares::JobQueue::instance()->
-                                                      globalStorage()->
-                                                      value( "defaultFileSystemType" ).toString() );
+        m_ui->fileSystemComboBox->setCurrentText( FileSystem::nameForType( defaultFSType ) );
 
     m_ui->fileSystemLabel->setEnabled( m_ui->formatRadioButton->isChecked() );
     m_ui->fileSystemComboBox->setEnabled( m_ui->formatRadioButton->isChecked() );
 
-    setupFlagsList();
+    setFlagList( *(m_ui->m_listFlags), m_partition->availableFlags(), PartitionInfo::flags( m_partition ) );
 }
 
 
@@ -123,44 +127,13 @@ EditExistingPartitionDialog::~EditExistingPartitionDialog()
 PartitionTable::Flags
 EditExistingPartitionDialog::newFlags() const
 {
-    PartitionTable::Flags flags;
-
-    for ( int i = 0; i < m_ui->m_listFlags->count(); i++ )
-        if ( m_ui->m_listFlags->item( i )->checkState() == Qt::Checked )
-            flags |= static_cast< PartitionTable::Flag >(
-                         m_ui->m_listFlags->item( i )->data( Qt::UserRole ).toInt() );
-
-    return flags;
+    return flagsFromList( *(m_ui->m_listFlags) );
 }
-
-
-void
-EditExistingPartitionDialog::setupFlagsList()
-{
-    int f = 1;
-    QString s;
-    while ( !( s = PartitionTable::flagName( static_cast< PartitionTable::Flag >( f ) ) ).isEmpty() )
-    {
-        if ( m_partition->availableFlags() & f )
-        {
-            QListWidgetItem* item = new QListWidgetItem( s );
-            m_ui->m_listFlags->addItem( item );
-            item->setFlags( Qt::ItemIsUserCheckable | Qt::ItemIsEnabled );
-            item->setData( Qt::UserRole, f );
-            item->setCheckState( ( m_partition->activeFlags() & f ) ?
-                                     Qt::Checked :
-                                     Qt::Unchecked );
-        }
-
-        f <<= 1;
-    }
-}
-
 
 void
 EditExistingPartitionDialog::applyChanges( PartitionCoreModule* core )
 {
-    PartitionInfo::setMountPoint( m_partition, m_ui->mountPointComboBox->currentText() );
+    PartitionInfo::setMountPoint( m_partition, selectedMountPoint(m_ui->mountPointComboBox) );
 
     qint64 newFirstSector = m_partitionSizeController->firstSector();
     qint64 newLastSector  = m_partitionSizeController->lastSector();
@@ -294,15 +267,13 @@ EditExistingPartitionDialog::updateMountPointPicker()
     m_ui->mountPointLabel->setEnabled( canMount );
     m_ui->mountPointComboBox->setEnabled( canMount );
     if ( !canMount )
-        m_ui->mountPointComboBox->setCurrentText( QString() );
+        setSelectedMountPoint( m_ui->mountPointComboBox, QString() );
 }
 
 void
 EditExistingPartitionDialog::checkMountPointSelection()
 {
-    const QString& selection = m_ui->mountPointComboBox->currentText();
-
-    if ( m_usedMountPoints.contains( selection ) )
+    if ( m_usedMountPoints.contains( selectedMountPoint( m_ui->mountPointComboBox ) ) )
     {
         m_ui->labelMountPoint->setText( tr( "Mountpoint already in use. Please select another one." ) );
         m_ui->buttonBox->button( QDialogButtonBox::Ok )->setEnabled( false );

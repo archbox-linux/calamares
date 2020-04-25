@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *
@@ -23,20 +23,21 @@
 #include <QDir>
 
 
-namespace Calamares {
+namespace Calamares
+{
 
 
 Module::Type
 PythonJobModule::type() const
 {
-    return Job;
+    return Module::Type::Job;
 }
 
 
 Module::Interface
 PythonJobModule::interface() const
 {
-    return PythonInterface;
+    return Module::Interface::Python;
 }
 
 
@@ -44,26 +45,25 @@ void
 PythonJobModule::loadSelf()
 {
     if ( m_loaded )
+    {
         return;
+    }
 
-    m_job = Calamares::job_ptr( new PythonJob( m_scriptFileName,
-                                               m_workingPath,
-                                               m_configurationMap ) );
+    m_job = Calamares::job_ptr( new PythonJob( instanceKey(), m_scriptFileName, m_workingPath, m_configurationMap ) );
     m_loaded = true;
 }
 
 
-QList< job_ptr >
+JobList
 PythonJobModule::jobs() const
 {
-    return QList< job_ptr >() << m_job;
+    return JobList() << m_job;
 }
 
 
 void
 PythonJobModule::initFrom( const QVariantMap& moduleDescriptor )
 {
-    Module::initFrom( moduleDescriptor );
     QDir directory( location() );
     m_workingPath = directory.absolutePath();
 
@@ -76,11 +76,11 @@ PythonJobModule::initFrom( const QVariantMap& moduleDescriptor )
 
 PythonJobModule::PythonJobModule()
     : Module()
-{}
+{
+}
 
 
-PythonJobModule::~PythonJobModule()
-{}
+PythonJobModule::~PythonJobModule() {}
 
 
-} // namespace Calamares
+}  // namespace Calamares

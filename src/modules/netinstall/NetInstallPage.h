@@ -2,7 +2,7 @@
  *   Copyright 2016, Luca Giambonini <almack@chakraos.org>
  *   Copyright 2016, Lisa Vitolo     <shainer@chakraos.org>
  *   Copyright 2017, Kyle Robbertze  <krobbertze@gmail.com>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, 2020, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -21,16 +21,17 @@
 #ifndef NETINSTALLPAGE_H
 #define NETINSTALLPAGE_H
 
+#include "Config.h"
 #include "PackageModel.h"
 #include "PackageTreeItem.h"
-#include "Typedefs.h"
 
+#include "locale/TranslatableConfiguration.h"
+
+#include <QString>
 #include <QWidget>
-#include <QAbstractButton>
-#include <QNetworkAccessManager>
 
-// required forward declarations
-class QByteArray;
+#include <memory>
+
 class QNetworkReply;
 
 namespace Ui
@@ -42,48 +43,38 @@ class NetInstallPage : public QWidget
 {
     Q_OBJECT
 public:
-    NetInstallPage( QWidget* parent = nullptr );
+    NetInstallPage( Config* config, QWidget* parent = nullptr );
+    virtual ~NetInstallPage();
+
+    /** @brief Sets the page title
+     *
+     * In situations where there is more than one netinstall page,
+     * or you want some explanatory title above the treeview,
+     * set the page title. This page takes ownership of the
+     * TranslatedString object.
+     *
+     * Set to nullptr to remove the title.
+     */
+    void setPageTitle( CalamaresUtils::Locale::TranslatedString* );
 
     void onActivate();
 
-    // Retrieves the groups, with name, description and packages, from
-    // the remote URL configured in the settings. Assumes the URL is already
-    // in the global storage. This should be called before displaying the page.
-    void loadGroupList();
-
-    // Sets the "required" state of netinstall data. Influences whether
-    // corrupt or unavailable data causes checkReady() to be emitted
-    // true (not-required) or false.
-    void setRequired( bool );
-    bool getRequired() const
-    {
-        return m_required;
-    }
-
-    // Returns the list of packages belonging to groups that are
-    // selected in the view in this given moment. No data is cached here, so
-    // this function does not have constant time.
-    PackageModel::PackageItemDataList selectedPackages() const;
-
 public slots:
-    void dataIsHere( QNetworkReply* );
+    void retranslate();
+    void setStatus( QString s );
 
-signals:
-    void checkReady( bool );
+    /** @brief Expand entries that should be pre-expanded.
+     *
+     * Follows the *expanded* key / the startExpanded field in the
+     * group entries of the model. Call this after filling up the model.
+     */
+    void expandGroups();
 
 private:
-    // Takes the YAML data representing the groups and reads them into the
-    // m_groups and m_groupOrder internal structures. See the README.md
-    // of this module to know the format expected of the YAML files.
-    bool readGroups( const QByteArray& yamlData );
-
+    Config* m_config;
     Ui::Page_NetInst* ui;
 
-    // Handles connection with the remote URL storing the configuration.
-    QNetworkAccessManager m_networkManager;
-
-    PackageModel* m_groups;
-    bool m_required;
+    std::unique_ptr< CalamaresUtils::Locale::TranslatedString > m_title;  // Above the treeview
 };
 
-#endif // NETINSTALLPAGE_H
+#endif  // NETINSTALLPAGE_H

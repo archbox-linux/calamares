@@ -1,20 +1,23 @@
 include_directories( ${PROJECT_BINARY_DIR}/src/libcalamaresui )
 
-find_package( LIBPARTED REQUIRED )
 find_package( Qt5 ${QT_VERSION} CONFIG REQUIRED DBus Network )
 
-include_directories( ${PROJECT_BINARY_DIR}/src/libcalamaresui )
+find_package( LIBPARTED )
+if ( LIBPARTED_FOUND )
+    set( PARTMAN_SRC checker/partman_devices.c )
+    set( CHECKER_LINK_LIBRARIES ${LIBPARTED_LIBRARY} )
+else()
+    set( PARTMAN_SRC )
+    set( CHECKER_LINK_LIBRARIES )
+    add_definitions( -DWITHOUT_LIBPARTED )
+endif()
 
 set( CHECKER_SOURCES
-    checker/CheckItemWidget.cpp
-    checker/CheckerWidget.cpp
-    checker/RequirementsChecker.cpp
-    checker/partman_devices.c
-)
-set( CHECKER_LINK_LIBRARIES
-    ${LIBPARTED_LIBS}
-    Qt5::DBus
-    Qt5::Network
+    checker/CheckerContainer.cpp
+    checker/GeneralRequirements.cpp
+    checker/ResultWidget.cpp
+    checker/ResultsListWidget.cpp
+    ${PARTMAN_SRC}
 )
 
 calamares_add_plugin( welcome
@@ -23,11 +26,17 @@ calamares_add_plugin( welcome
     SOURCES
         ${CHECKER_SOURCES}
         WelcomeViewStep.cpp
+        Config.cpp
+        Config.h
         WelcomePage.cpp
     UI
         WelcomePage.ui
+    RESOURCES
+        welcome.qrc
     LINK_PRIVATE_LIBRARIES
         calamaresui
         ${CHECKER_LINK_LIBRARIES}
+        Qt5::DBus
+        Qt5::Network
     SHARED_LIB
 )

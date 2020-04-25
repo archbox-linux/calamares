@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015, Anke Boersma <demm@kaosx.us>
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
@@ -19,29 +19,30 @@
 
 #include "LicenseViewStep.h"
 
-#include "LicensePage.h"
-#include "JobQueue.h"
 #include "GlobalStorage.h"
+#include "JobQueue.h"
+#include "LicensePage.h"
 #include "utils/Logger.h"
 
 #include <QVariantMap>
 
-CALAMARES_PLUGIN_FACTORY_DEFINITION( LicenseViewStepFactory, registerPlugin<LicenseViewStep>(); )
+CALAMARES_PLUGIN_FACTORY_DEFINITION( LicenseViewStepFactory, registerPlugin< LicenseViewStep >(); )
 
 LicenseViewStep::LicenseViewStep( QObject* parent )
     : Calamares::ViewStep( parent )
     , m_widget( new LicensePage )
 {
     emit nextStatusChanged( false );
-    connect( m_widget, &LicensePage::nextStatusChanged,
-             this, &LicenseViewStep::nextStatusChanged );
+    connect( m_widget, &LicensePage::nextStatusChanged, this, &LicenseViewStep::nextStatusChanged );
 }
 
 
 LicenseViewStep::~LicenseViewStep()
 {
     if ( m_widget && m_widget->parent() == nullptr )
+    {
         m_widget->deleteLater();
+    }
 }
 
 
@@ -57,18 +58,6 @@ LicenseViewStep::widget()
 {
     return m_widget;
 }
-
-
-void
-LicenseViewStep::next()
-{
-    emit done();
-}
-
-
-void
-LicenseViewStep::back()
-{}
 
 
 bool
@@ -109,43 +98,21 @@ void
 LicenseViewStep::setConfigurationMap( const QVariantMap& configurationMap )
 {
     QList< LicenseEntry > entriesList;
-    if ( configurationMap.contains( "entries" ) &&
-         configurationMap.value( "entries" ).type() == QVariant::List )
+    if ( configurationMap.contains( "entries" ) && configurationMap.value( "entries" ).type() == QVariant::List )
     {
         const auto entries = configurationMap.value( "entries" ).toList();
         for ( const QVariant& entryV : entries )
         {
             if ( entryV.type() != QVariant::Map )
+            {
                 continue;
+            }
 
-            QVariantMap entryMap = entryV.toMap();
-            if ( !entryMap.contains( "id" ) ||
-                 !entryMap.contains( "name" ) ||
-                 !entryMap.contains( "url" ) )
-                continue;
-
-            LicenseEntry entry;
-            entry.id =          entryMap[ "id" ].toString();
-            entry.prettyName =  entryMap[ "name" ].toString();
-            entry.prettyVendor =entryMap.value( "vendor" ).toString();
-            entry.url =         QUrl( entryMap[ "url" ].toString() );
-            entry.required =    entryMap.value( "required", QVariant( false ) ).toBool();
-
-            QString entryType = entryMap.value( "type", "software" ).toString();
-            if ( entryType == "driver" )
-                entry.type =    LicenseEntry::Driver;
-            else if ( entryType == "gpudriver" )
-                entry.type =    LicenseEntry::GpuDriver;
-            else if ( entryType == "browserplugin" )
-                entry.type =    LicenseEntry::BrowserPlugin;
-            else if ( entryType == "codec" )
-                entry.type =    LicenseEntry::Codec;
-            else if ( entryType == "package" )
-                entry.type =    LicenseEntry::Package;
-            else
-                entry.type =    LicenseEntry::Software;
-
-            entriesList.append( entry );
+            LicenseEntry entry( entryV.toMap() );
+            if ( entry.isValid() )
+            {
+                entriesList.append( entry );
+            }
         }
     }
 

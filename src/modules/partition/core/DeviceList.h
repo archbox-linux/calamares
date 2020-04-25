@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2017, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -28,7 +28,11 @@ class Device;
 namespace PartUtils
 {
 
-enum class DeviceType { All, WritableOnly };
+enum class DeviceType
+{
+    All,
+    WritableOnly
+};
 
 /**
  * @brief Gets a list of storage devices.
@@ -43,6 +47,6 @@ enum class DeviceType { All, WritableOnly };
  */
 QList< Device* > getDevices( DeviceType which = DeviceType::All, qint64 minimumSize = -1 );
 
-}
+}  // namespace PartUtils
 
-#endif // DEVICELIST_H
+#endif  // DEVICELIST_H

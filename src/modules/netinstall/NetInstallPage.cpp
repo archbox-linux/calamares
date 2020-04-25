@@ -2,7 +2,7 @@
  *   Copyright 2016, Luca Giambonini <almack@chakraos.org>
  *   Copyright 2016, Lisa Vitolo     <shainer@chakraos.org>
  *   Copyright 2017, Kyle Robbertze  <krobbertze@gmail.com>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, 2020, Adriaan de Groot <groot@kde.org>
  *   Copyright 2017, Gabriel Craciunescu <crazy@frugalware.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
@@ -22,133 +22,81 @@
 #include "NetInstallPage.h"
 
 #include "PackageModel.h"
-
 #include "ui_page_netinst.h"
-#include "GlobalStorage.h"
+
 #include "JobQueue.h"
+
+#include "network/Manager.h"
 #include "utils/Logger.h"
 #include "utils/Retranslator.h"
-#include "utils/YamlUtils.h"
-
-#include <QFile>
-#include <QMap>
-#include <QTextStream>
-
-#include <QNetworkAccessManager>
-#include <QNetworkRequest>
-#include <QNetworkReply>
+#include "utils/Yaml.h"
 
 #include <QHeaderView>
-#include <QtDebug>
-#include <QtGlobal>
-#include <QWidget>
-#include <QSignalMapper>
+#include <QNetworkReply>
 
-#include <yaml-cpp/yaml.h>
-
-using CalamaresUtils::yamlToVariant;
-
-NetInstallPage::NetInstallPage( QWidget* parent )
+NetInstallPage::NetInstallPage( Config* c, QWidget* parent )
     : QWidget( parent )
+    , m_config( c )
     , ui( new Ui::Page_NetInst )
-    , m_networkManager( this )
-    , m_groups( nullptr )
 {
     ui->setupUi( this );
+    ui->groupswidget->setModel( c->model() );
+    connect( c, &Config::statusChanged, this, &NetInstallPage::setStatus );
+    connect( c, &Config::statusReady, this, &NetInstallPage::expandGroups );
+
+    setPageTitle( nullptr );
+    CALAMARES_RETRANSLATE_SLOT( &NetInstallPage::retranslate );
 }
 
-bool
-NetInstallPage::readGroups( const QByteArray& yamlData )
-{
-    try
-    {
-        YAML::Node groups = YAML::Load( yamlData.constData() );
-
-        if ( !groups.IsSequence() )
-            cDebug() << "WARNING: netinstall groups data does not form a sequence.";
-        Q_ASSERT( groups.IsSequence() );
-        m_groups = new PackageModel( groups );
-        CALAMARES_RETRANSLATE(
-            m_groups->setHeaderData( 0, Qt::Horizontal, tr( "Name" ) );
-            m_groups->setHeaderData( 1, Qt::Horizontal, tr( "Description" ) ); )
-        return true;
-
-    }
-    catch ( YAML::Exception& e )
-    {
-        CalamaresUtils::explainYamlException( e, yamlData, "netinstall groups data" );
-        return false;
-    }
-}
+NetInstallPage::~NetInstallPage() {}
 
 void
-NetInstallPage::dataIsHere( QNetworkReply* reply )
+NetInstallPage::setPageTitle( CalamaresUtils::Locale::TranslatedString* t )
 {
-    // If m_required is *false* then we still say we're ready
-    // even if the reply is corrupt or missing.
-    if ( reply->error() != QNetworkReply::NoError )
+    m_title.reset( t );
+    if ( !m_title )
     {
-        cDebug() << reply->errorString();
-        ui->netinst_status->setText( tr( "Network Installation. (Disabled: Unable to fetch package lists, check your network connection)" ) );
-        emit checkReady( !m_required );
-        return;
+        ui->label->hide();
     }
-
-    if ( !readGroups( reply->readAll() ) )
-    {
-        cDebug() << "Netinstall groups data was received, but invalid.";
-        ui->netinst_status->setText( tr( "Network Installation. (Disabled: Unable to fetch package lists, check your network connection)" ) );
-        reply->deleteLater();
-        emit checkReady( !m_required );
-        return;
-    }
-
-    ui->groupswidget->setModel( m_groups );
-    ui->groupswidget->header()->setSectionResizeMode( 0, QHeaderView::ResizeToContents );
-    ui->groupswidget->header()->setSectionResizeMode( 1, QHeaderView::Stretch );
-
-    reply->deleteLater();
-    emit checkReady( true );
-}
-
-PackageModel::PackageItemDataList
-NetInstallPage::selectedPackages() const
-{
-    if ( m_groups )
-        return m_groups->getPackages();
     else
     {
-        cDebug() << "WARNING: no netinstall groups are available.";
-        return PackageModel::PackageItemDataList();
+        ui->label->show();
     }
+    retranslate();
 }
 
 void
-NetInstallPage::loadGroupList()
+NetInstallPage::retranslate()
 {
-    QString confUrl(
-        Calamares::JobQueue::instance()->globalStorage()->value(
-            "groupsUrl" ).toString() );
-
-    QNetworkRequest request;
-    request.setUrl( QUrl( confUrl ) );
-    // Follows all redirects except unsafe ones (https to http).
-    request.setAttribute( QNetworkRequest::FollowRedirectsAttribute, true );
-    // Not everybody likes the default User Agent used by this class (looking at you,
-    // sourceforge.net), so let's set a more descriptive one.
-    request.setRawHeader( "User-Agent", "Mozilla/5.0 (compatible; Calamares)" );
-
-    connect( &m_networkManager, &QNetworkAccessManager::finished,
-             this, &NetInstallPage::dataIsHere );
-    m_networkManager.get( request );
+    if ( m_title )
+    {
+        ui->label->setText( m_title->get() );  // That's get() on the TranslatedString
+    }
+    ui->netinst_status->setText( m_config->status() );
 }
 
 void
-NetInstallPage::setRequired( bool b )
+NetInstallPage::expandGroups()
 {
-    m_required = b;
+    auto* model = m_config->model();
+    // Go backwards because expanding a group may cause rows to appear below it
+    for ( int i = model->rowCount() - 1; i >= 0; --i )
+    {
+        auto index = model->index( i, 0 );
+        if ( model->data( index, PackageModel::MetaExpandRole ).toBool() )
+        {
+            ui->groupswidget->setExpanded( index, true );
+        }
+    }
+    // Make sure all the group names are visible
+    ui->groupswidget->resizeColumnToContents(0);
 }
 
+void
+NetInstallPage::setStatus( QString s )
+{
+    ui->netinst_status->setText( s );
+}
 
 void
 NetInstallPage::onActivate()

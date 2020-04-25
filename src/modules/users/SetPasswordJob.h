@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -20,20 +20,19 @@
 #ifndef SETPASSWORDJOB_H
 #define SETPASSWORDJOB_H
 
-#include <Job.h>
+#include "Job.h"
 
 
 class SetPasswordJob : public Calamares::Job
 {
     Q_OBJECT
 public:
-    SetPasswordJob( const QString& userName,
-                    const QString& newPassword );
+    SetPasswordJob( const QString& userName, const QString& newPassword );
     QString prettyName() const override;
     QString prettyStatusMessage() const override;
     Calamares::JobResult exec() override;
 
-    static QString make_salt(int length);
+    static QString make_salt( int length );
 
 private:
     QString m_userName;

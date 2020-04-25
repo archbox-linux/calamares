@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -22,31 +22,24 @@
 
 FixedAspectRatioLabel::FixedAspectRatioLabel( QWidget* parent )
     : QLabel( parent )
-{}
+{
+}
 
 
-FixedAspectRatioLabel::~FixedAspectRatioLabel()
-{}
+FixedAspectRatioLabel::~FixedAspectRatioLabel() {}
 
 
 void
 FixedAspectRatioLabel::setPixmap( const QPixmap& pixmap )
 {
     m_pixmap = pixmap;
-    QLabel::setPixmap( pixmap.scaled(
-                           contentsRect().size(),
-                           Qt::KeepAspectRatio,
-                           Qt::SmoothTransformation ) );
+    QLabel::setPixmap( pixmap.scaled( contentsRect().size(), Qt::KeepAspectRatio, Qt::SmoothTransformation ) );
 }
 
 
 void
 FixedAspectRatioLabel::resizeEvent( QResizeEvent* event )
 {
-    Q_UNUSED( event );
-    QLabel::setPixmap( m_pixmap.scaled(
-                           contentsRect().size(),
-                           Qt::KeepAspectRatio,
-                           Qt::SmoothTransformation ) );
+    Q_UNUSED( event )
+    QLabel::setPixmap( m_pixmap.scaled( contentsRect().size(), Qt::KeepAspectRatio, Qt::SmoothTransformation ) );
 }
-

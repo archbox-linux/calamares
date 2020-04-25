@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2016, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2017, Adriaan de Groot <groot@kde.org>
  *
  *   Portions from the Manjaro Installation Framework
  *   by Roland Singer <roland@manjaro.org>
@@ -23,13 +24,11 @@
 #ifndef KEYBOARDPAGE_H
 #define KEYBOARDPAGE_H
 
-#include "keyboardwidget/keyboardglobal.h"
-
-#include "Typedefs.h"
+#include "Job.h"
 
 #include <QListWidgetItem>
-#include <QWidget>
 #include <QTimer>
+#include <QWidget>
 
 namespace Ui
 {
@@ -49,22 +48,20 @@ public:
 
     QString prettyStatus() const;
 
-    QList< Calamares::job_ptr > createJobs( const QString& xOrgConfFileName,
-                                            const QString& convertedKeymapPath,
-                                            bool writeEtcDefaultKeyboard );
+    Calamares::JobList
+    createJobs( const QString& xOrgConfFileName, const QString& convertedKeymapPath, bool writeEtcDefaultKeyboard );
 
     void onActivate();
     void finalize();
 
 protected slots:
-    void onListLayoutCurrentItemChanged( const QModelIndex& current,
-                                         const QModelIndex& previous );
-    void onListVariantCurrentItemChanged( QListWidgetItem* current,
-                                          QListWidgetItem* previous );
+    void onListLayoutCurrentItemChanged( const QModelIndex& current, const QModelIndex& previous );
+    void onListVariantCurrentItemChanged( QListWidgetItem* current, QListWidgetItem* previous );
 
 private:
-    void updateVariants( const QPersistentModelIndex& currentItem,
-                         QString currentVariant = QString() );
+    /// Guess a layout based on the split-apart locale
+    void guessLayout( const QStringList& langParts );
+    void updateVariants( const QPersistentModelIndex& currentItem, QString currentVariant = QString() );
 
     Ui::Page_Keyboard* ui;
     KeyBoardPreview* m_keyboardPreview;
@@ -76,4 +73,4 @@ private:
     QTimer m_setxkbmapTimer;
 };
 
-#endif // KEYBOARDPAGE_H
+#endif  // KEYBOARDPAGE_H

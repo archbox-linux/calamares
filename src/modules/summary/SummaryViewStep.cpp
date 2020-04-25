@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *
@@ -49,18 +49,6 @@ SummaryViewStep::widget()
 {
     return m_widget;
 }
-
-
-void
-SummaryViewStep::next()
-{
-    emit done();
-}
-
-
-void
-SummaryViewStep::back()
-{}
 
 
 bool

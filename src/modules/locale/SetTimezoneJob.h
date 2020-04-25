@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *
@@ -19,15 +19,14 @@
 #ifndef SETTIMEZONEJOB_H
 #define SETTIMEZONEJOB_H
 
-#include <Job.h>
+#include "Job.h"
 
 
 class SetTimezoneJob : public Calamares::Job
 {
     Q_OBJECT
 public:
-    SetTimezoneJob( const QString& region,
-                   const QString& zone );
+    SetTimezoneJob( const QString& region, const QString& zone );
 
     QString prettyName() const override;
     Calamares::JobResult exec() override;

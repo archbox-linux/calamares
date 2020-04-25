@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *
@@ -19,7 +19,7 @@
 #ifndef PARTITIONJOBTESTS_H
 #define PARTITIONJOBTESTS_H
 
-#include <JobQueue.h>
+#include "JobQueue.h"
 
 // CalaPM
 #include <core/device.h>
@@ -36,6 +36,7 @@ class QueueRunner : public QObject
 {
 public:
     QueueRunner( Calamares::JobQueue* queue );
+    virtual ~QueueRunner() override;
 
     /**
      * Synchronously runs the queue. Returns true on success
@@ -58,6 +59,7 @@ public:
 
 private Q_SLOTS:
     void initTestCase();
+    void cleanupTestCase();
     void testPartitionTable();
     void testCreatePartition();
     void testCreatePartitionExtended();
@@ -70,7 +72,8 @@ private:
     QueueRunner m_runner;
 
     void queuePartitionTableCreation( PartitionTable::TableType type );
-    CreatePartitionJob* newCreatePartitionJob( Partition* freeSpacePartition, PartitionRole, FileSystem::Type type, qint64 size );
+    CreatePartitionJob*
+    newCreatePartitionJob( Partition* freeSpacePartition, PartitionRole, FileSystem::Type type, qint64 size );
     void refreshDevice();
 };
 

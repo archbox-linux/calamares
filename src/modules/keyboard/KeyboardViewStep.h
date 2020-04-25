@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -20,12 +20,11 @@
 #ifndef KEYBOARDVIEWSTEP_H
 #define KEYBOARDVIEWSTEP_H
 
+#include "DllMacro.h"
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
+
 #include <QObject>
-
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
-
-#include <PluginDllMacro.h>
 
 class KeyboardPage;
 
@@ -42,16 +41,13 @@ public:
 
     QWidget* widget() override;
 
-    void next() override;
-    void back() override;
-
     bool isNextEnabled() const override;
     bool isBackEnabled() const override;
 
     bool isAtBeginning() const override;
     bool isAtEnd() const override;
 
-    QList< Calamares::job_ptr > jobs() const override;
+    Calamares::JobList jobs() const override;
 
     void onActivate() override;
     void onLeave() override;
@@ -67,9 +63,9 @@ private:
     QString m_convertedKeymapPath;
     bool m_writeEtcDefaultKeyboard;
 
-    QList< Calamares::job_ptr > m_jobs;
+    Calamares::JobList m_jobs;
 };
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( KeyboardViewStepFactory )
 
-#endif // KEYBOARDVIEWSTEP_H
+#endif  // KEYBOARDVIEWSTEP_H

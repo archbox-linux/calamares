@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2016, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, 2020, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -20,12 +20,14 @@
 #ifndef PYTHONJOBAPI_H
 #define PYTHONJOBAPI_H
 
-#include "CalamaresVersion.h"
+#include "qglobal.h"  // For qreal
 
-#include "PythonJob.h"
+#include "utils/BoostPython.h"
 
-#undef slots
-#include <boost/python/dict.hpp>
+namespace Calamares
+{
+class PythonJob;
+}
 
 namespace CalamaresPython
 {
@@ -35,29 +37,19 @@ int mount( const std::string& device_path,
            const std::string& filesystem_name = std::string(),
            const std::string& options = std::string() );
 
-int target_env_call( const std::string& command,
-                 const std::string& stdin = std::string(),
-                 int timeout = 0 );
+int target_env_call( const std::string& command, const std::string& stdin = std::string(), int timeout = 0 );
 
-int target_env_call( const boost::python::list& args,
-                 const std::string& stdin = std::string(),
-                 int timeout = 0 );
+int target_env_call( const boost::python::list& args, const std::string& stdin = std::string(), int timeout = 0 );
 
-int check_target_env_call( const std::string& command,
-                       const std::string& stdin = std::string(),
-                       int timeout = 0 );
+int check_target_env_call( const std::string& command, const std::string& stdin = std::string(), int timeout = 0 );
 
-int check_target_env_call( const boost::python::list& args,
-                       const std::string& stdin = std::string(),
-                       int timeout = 0 );
+int check_target_env_call( const boost::python::list& args, const std::string& stdin = std::string(), int timeout = 0 );
 
-std::string check_target_env_output( const std::string& command,
-                                 const std::string& stdin = std::string(),
-                                 int timeout = 0 );
+std::string
+check_target_env_output( const std::string& command, const std::string& stdin = std::string(), int timeout = 0 );
 
-std::string check_target_env_output( const boost::python::list& args,
-                                 const std::string& stdin = std::string(),
-                                 int timeout = 0 );
+std::string
+check_target_env_output( const boost::python::list& args, const std::string& stdin = std::string(), int timeout = 0 );
 
 std::string obscure( const std::string& string );
 
@@ -66,8 +58,7 @@ boost::python::object gettext_path();
 boost::python::list gettext_languages();
 
 void debug( const std::string& s );
-
-inline int _handle_check_target_env_call_error( int ec, const QString& cmd );
+void warning( const std::string& s );
 
 class PythonJobInterface
 {
@@ -86,6 +77,6 @@ private:
     Calamares::PythonJob* m_parent;
 };
 
-}
+}  // namespace CalamaresPython
 
-#endif // PYTHONJOBAPI_H
+#endif  // PYTHONJOBAPI_H

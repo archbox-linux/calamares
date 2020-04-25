@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -24,11 +24,11 @@ namespace Calamares
 
 ViewStep::ViewStep( QObject* parent )
     : QObject( parent )
-{}
+{
+}
 
 
-ViewStep::~ViewStep()
-{}
+ViewStep::~ViewStep() {}
 
 
 QString
@@ -45,16 +45,28 @@ ViewStep::createSummaryWidget() const
 
 void
 ViewStep::onActivate()
-{}
+{
+}
 
 
 void
 ViewStep::onLeave()
-{}
+{
+}
+
+void
+ViewStep::next()
+{
+}
+
+void
+ViewStep::back()
+{
+}
 
 
 void
-ViewStep::setModuleInstanceKey( const QString& instanceKey )
+ViewStep::setModuleInstanceKey( const Calamares::ModuleSystem::InstanceKey& instanceKey )
 {
     m_instanceKey = instanceKey;
 }
@@ -63,7 +75,14 @@ ViewStep::setModuleInstanceKey( const QString& instanceKey )
 void
 ViewStep::setConfigurationMap( const QVariantMap& configurationMap )
 {
-    Q_UNUSED( configurationMap );
+    Q_UNUSED( configurationMap )
 }
 
+
+RequirementsList
+ViewStep::checkRequirements()
+{
+    return RequirementsList();
 }
+
+}  // namespace Calamares

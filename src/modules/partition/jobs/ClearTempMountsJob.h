@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *
@@ -19,7 +19,7 @@
 #ifndef CLEARTEMPMOUNTSJOB_H
 #define CLEARTEMPMOUNTSJOB_H
 
-#include <Job.h>
+#include "Job.h"
 
 class Device;
 
@@ -37,4 +37,4 @@ public:
     Calamares::JobResult exec() override;
 };
 
-#endif // CLEARTEMPMOUNTSJOB_H
+#endif  // CLEARTEMPMOUNTSJOB_H

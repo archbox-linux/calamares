@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2018-2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,11 +20,7 @@
 #ifndef CALAMARESAPPLICATION_H
 #define CALAMARESAPPLICATION_H
 
-#include "Typedefs.h"
-
 #include <QApplication>
-
-#define APP CalamaresApplication::instance()
 
 class CalamaresWindow;
 
@@ -53,16 +50,6 @@ public:
     static CalamaresApplication* instance();
 
     /**
-     * @brief setDebug controls whether debug mode is enabled
-     */
-    void setDebug( bool enabled );
-
-    /**
-     * @brief isDebug returns true if running in debug mode, otherwise false.
-     */
-    bool isDebug();
-
-    /**
      * @brief mainWindow returns the Calamares application main window.
      */
     CalamaresWindow* mainWindow();
@@ -70,18 +57,17 @@ public:
 private slots:
     void initView();
     void initViewSteps();
+    void initFailed( const QStringList& l );
 
 private:
+    // Initialization steps happen in this order
     void initQmlPath();
-    void initSettings();
     void initBranding();
     void initModuleManager();
     void initJobQueue();
 
     CalamaresWindow* m_mainwindow;
     Calamares::ModuleManager* m_moduleManager;
-
-    bool m_debugMode;
 };
 
-#endif //CALAMARESAPPLICATION_H
+#endif  // CALAMARESAPPLICATION_H

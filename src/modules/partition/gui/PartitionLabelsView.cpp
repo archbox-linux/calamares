@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2015-2016, Teo Mrnjavac <teo@kde.org>
@@ -19,11 +19,12 @@
 
 #include "PartitionLabelsView.h"
 
-#include <core/PartitionModel.h>
-#include <core/ColorUtils.h>
+#include "core/PartitionModel.h"
+#include "core/ColorUtils.h"
 
-#include <utils/CalamaresUtilsGui.h>
-#include <utils/Logger.h>
+#include "utils/CalamaresUtilsGui.h"
+#include "utils/Logger.h"
+#include "utils/Units.h"
 
 #include <kpmcore/core/device.h>
 #include <kpmcore/fs/filesystem.h>
@@ -35,6 +36,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 
+using CalamaresUtils::operator""_MiB;
 
 static const int LAYOUT_MARGIN = 4;
 static const int LABEL_PARTITION_SQUARE_MARGIN =
@@ -61,13 +63,7 @@ PartitionLabelsView::PartitionLabelsView( QWidget* parent )
     setFrameStyle( QFrame::NoFrame );
     setSelectionBehavior( QAbstractItemView::SelectRows );
     setSelectionMode( QAbstractItemView::SingleSelection );
-
-    // Debug
-    connect( this, &PartitionLabelsView::clicked,
-             this, [=]( const QModelIndex& index )
-    {
-        cDebug() << "Clicked row" << index.row();
-    } );
+    this->setObjectName("partitionLabel");
     setMouseTracking( true );
 }
 
@@ -100,7 +96,7 @@ PartitionLabelsView::sizeHint() const
 void
 PartitionLabelsView::paintEvent( QPaintEvent* event )
 {
-    Q_UNUSED( event );
+    Q_UNUSED( event )
 
     QPainter painter( viewport() );
     painter.fillRect( rect(), palette().window() );
@@ -162,8 +158,8 @@ PartitionLabelsView::getIndexesToDraw( const QModelIndex& parent ) const
 
         //HACK: horrible special casing follows.
         //      To save vertical space, we choose to hide short instances of free space.
-        //      Arbitrary limit: 10MB.
-        const qint64 maxHiddenB = 10000000;
+        //      Arbitrary limit: 10MiB.
+        const qint64 maxHiddenB = 10_MiB;
         if ( index.data( PartitionModel::IsFreeSpaceRole ).toBool() &&
              index.data( PartitionModel::SizeRole ).toLongLong() <  maxHiddenB )
             continue;
@@ -185,26 +181,35 @@ PartitionLabelsView::buildTexts( const QModelIndex& index ) const
 
     if ( index.data( PartitionModel::IsPartitionNewRole ).toBool() )
     {
-        QString mountPoint = index.sibling( index.row(),
-                                            PartitionModel::MountPointColumn )
-                                  .data().toString();
-        if ( mountPoint == "/" )
-            firstLine = m_customNewRootLabel.isEmpty() ?
-                            tr( "Root" ) :
-                            m_customNewRootLabel;
-        else if ( mountPoint == "/home" )
-            firstLine = tr( "Home" );
-        else if ( mountPoint == "/boot" )
-            firstLine = tr( "Boot" );
-        else if ( mountPoint.contains( "/efi" ) &&
-                  index.data( PartitionModel::FileSystemTypeRole ).toInt() == FileSystem::Fat32 )
-            firstLine = tr( "EFI system" );
-        else if ( index.data( PartitionModel::FileSystemTypeRole ).toInt() == FileSystem::LinuxSwap )
-            firstLine = tr( "Swap" );
-        else if ( !mountPoint.isEmpty() )
-            firstLine = tr( "New partition for %1" ).arg( mountPoint );
+        QString label = index.data( PartitionModel::FileSystemLabelRole ).toString();
+
+        if ( !label.isEmpty() )
+        {
+            firstLine = label;
+        }
         else
-            firstLine = tr( "New partition" );
+        {
+            QString mountPoint = index.sibling( index.row(),
+                                                PartitionModel::MountPointColumn )
+                                      .data().toString();
+            if ( mountPoint == "/" )
+                firstLine = m_customNewRootLabel.isEmpty() ?
+                                tr( "Root" ) :
+                                m_customNewRootLabel;
+            else if ( mountPoint == "/home" )
+                firstLine = tr( "Home" );
+            else if ( mountPoint == "/boot" )
+                firstLine = tr( "Boot" );
+            else if ( mountPoint.contains( "/efi" ) &&
+                      index.data( PartitionModel::FileSystemTypeRole ).toInt() == FileSystem::Fat32 )
+                firstLine = tr( "EFI system" );
+            else if ( index.data( PartitionModel::FileSystemTypeRole ).toInt() == FileSystem::LinuxSwap )
+                firstLine = tr( "Swap" );
+            else if ( !mountPoint.isEmpty() )
+                firstLine = tr( "New partition for %1" ).arg( mountPoint );
+            else
+                firstLine = tr( "New partition" );
+        }
     }
     else if ( index.data( PartitionModel::OsproberNameRole ).toString().isEmpty() )
     {
@@ -221,6 +226,7 @@ PartitionLabelsView::buildTexts( const QModelIndex& index ) const
                                     PartitionModel::SizeColumn )
                           .data().toString();
     else
+        //: size[number]  filesystem[name]
         secondLine = tr( "%1  %2" )
                      .arg( index.sibling( index.row(),
                                           PartitionModel::SizeColumn )
@@ -270,7 +276,7 @@ PartitionLabelsView::drawLabels( QPainter* painter,
             labelRect.adjust( 0, -LAYOUT_MARGIN, 0, -2*LAYOUT_MARGIN );
             painter->translate( 0.5, 0.5 );
             QRect hoverRect = labelRect.adjusted( 0, 0, -1, -1 );
-            painter->setBrush( QPalette().background().color().lighter( 102 ) );
+            painter->setBrush( QPalette().window().color().lighter( 102 ) );
             painter->setPen( Qt::NoPen );
             painter->drawRoundedRect( hoverRect, CORNER_RADIUS, CORNER_RADIUS );
 
@@ -468,7 +474,7 @@ PartitionLabelsView::visualRect( const QModelIndex& idx ) const
 QRegion
 PartitionLabelsView::visualRegionForSelection( const QItemSelection& selection ) const
 {
-    Q_UNUSED( selection );
+    Q_UNUSED( selection )
 
     return QRegion();
 }
@@ -533,8 +539,8 @@ PartitionLabelsView::setExtendedPartitionHidden( bool hidden )
 QModelIndex
 PartitionLabelsView::moveCursor( CursorAction cursorAction, Qt::KeyboardModifiers modifiers )
 {
-    Q_UNUSED( cursorAction );
-    Q_UNUSED( modifiers );
+    Q_UNUSED( cursorAction )
+    Q_UNUSED( modifiers )
 
     return QModelIndex();
 }
@@ -543,7 +549,7 @@ PartitionLabelsView::moveCursor( CursorAction cursorAction, Qt::KeyboardModifier
 bool
 PartitionLabelsView::isIndexHidden( const QModelIndex& index ) const
 {
-    Q_UNUSED( index );
+    Q_UNUSED( index )
 
     return false;
 }
@@ -588,7 +594,7 @@ PartitionLabelsView::mouseMoveEvent( QMouseEvent* event )
 void
 PartitionLabelsView::leaveEvent( QEvent* event )
 {
-    Q_UNUSED( event );
+    Q_UNUSED( event )
 
     QGuiApplication::restoreOverrideCursor();
     if ( m_hoveredIndex.isValid() )

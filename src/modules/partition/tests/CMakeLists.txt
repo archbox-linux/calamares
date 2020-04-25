@@ -1,21 +1,6 @@
-find_package( Qt5 COMPONENTS Gui Test REQUIRED )
-find_package( KF5 COMPONENTS Service REQUIRED )
-
-include( ECMAddTests )
+find_package( Qt5 COMPONENTS Gui REQUIRED )
 
 set( PartitionModule_SOURCE_DIR .. )
-
-set( partitionjobtests_SRCS
-    ${PartitionModule_SOURCE_DIR}/core/KPMHelpers.cpp
-    ${PartitionModule_SOURCE_DIR}/core/PartitionInfo.cpp
-    ${PartitionModule_SOURCE_DIR}/core/PartitionIterator.cpp
-    ${PartitionModule_SOURCE_DIR}/jobs/CreatePartitionJob.cpp
-    ${PartitionModule_SOURCE_DIR}/jobs/CreatePartitionTableJob.cpp
-    ${PartitionModule_SOURCE_DIR}/jobs/DeletePartitionJob.cpp
-    ${PartitionModule_SOURCE_DIR}/jobs/PartitionJob.cpp
-    ${PartitionModule_SOURCE_DIR}/jobs/ResizePartitionJob.cpp
-    PartitionJobTests.cpp
-)
 
 include_directories(
     ${Qt5Gui_INCLUDE_DIRS}
@@ -24,14 +9,29 @@ include_directories(
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-ecm_add_test( ${partitionjobtests_SRCS}
-    TEST_NAME partitionjobtests
-    LINK_LIBRARIES
-        ${CALAMARES_LIBRARIES}
+calamares_add_test(
+    partitionjobtests
+    SOURCES
+        PartitionJobTests.cpp
+        ${PartitionModule_SOURCE_DIR}/core/KPMHelpers.cpp
+        ${PartitionModule_SOURCE_DIR}/core/PartitionInfo.cpp
+        ${PartitionModule_SOURCE_DIR}/jobs/CreatePartitionJob.cpp
+        ${PartitionModule_SOURCE_DIR}/jobs/CreatePartitionTableJob.cpp
+        ${PartitionModule_SOURCE_DIR}/jobs/DeletePartitionJob.cpp
+        ${PartitionModule_SOURCE_DIR}/jobs/PartitionJob.cpp
+        ${PartitionModule_SOURCE_DIR}/jobs/ResizePartitionJob.cpp
+    LIBRARIES
         kpmcore
-        Qt5::Core
-        Qt5::Test
-        KF5::Service
+    DEFINITIONS ${_partition_defs}
 )
 
-set_target_properties( partitionjobtests PROPERTIES AUTOMOC TRUE )
+calamares_add_test(
+    clearmountsjobtests
+    SOURCES
+        ${PartitionModule_SOURCE_DIR}/jobs/ClearMountsJob.cpp
+        ClearMountsJobTests.cpp
+    LIBRARIES
+        kpmcore
+    DEFINITIONS ${_partition_defs}
+)
+

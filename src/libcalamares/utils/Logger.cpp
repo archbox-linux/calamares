@@ -1,8 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2010-2011, Christian Muehlhaeuser <muesli@tomahawk-player.org>
  *   Copyright 2014,      Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -20,8 +20,8 @@
 
 #include "Logger.h"
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -30,52 +30,62 @@
 #include <QTime>
 #include <QVariant>
 
-#include "utils/CalamaresUtils.h"
+#include "CalamaresVersion.h"
+#include "utils/Dirs.h"
 
 #define LOGFILE_SIZE 1024 * 256
 
-#define RELEASE_LEVEL_THRESHOLD 0
-#define DEBUG_LEVEL_THRESHOLD LOGEXTRA
-
-using namespace std;
-
-static ofstream logfile;
-static unsigned int s_threshold = 0;
+static std::ofstream logfile;
+static unsigned int s_threshold =
+#ifdef QT_NO_DEBUG
+    Logger::LOG_DISABLE;
+#else
+    Logger::LOGEXTRA + 1;  // Comparison is < in log() function
+#endif
 static QMutex s_mutex;
+
+static const char s_Continuation[] = "\n    ";
+static const char s_SubEntry[] = " .. ";
+
 
 namespace Logger
 {
 
-static void
-log( const char* msg, unsigned int debugLevel, bool toDisk = true )
+void
+setupLogLevel( unsigned int level )
 {
-    if ( !s_threshold )
+    if ( level > LOGVERBOSE )
     {
-        if ( qApp->arguments().contains( "--debug" ) ||
-             qApp->arguments().contains( "-d" ) )
-            s_threshold = LOGVERBOSE;
-        else
-#ifdef QT_NO_DEBUG
-            s_threshold = RELEASE_LEVEL_THRESHOLD;
-#else
-            s_threshold = DEBUG_LEVEL_THRESHOLD;
-#endif
-        // Comparison is < threshold, below
-        ++s_threshold;
+        level = LOGVERBOSE;
     }
+    s_threshold = level + 1;  // Comparison is < in log() function
+}
 
-    if ( toDisk || debugLevel < s_threshold )
+bool
+logLevelEnabled( unsigned int level )
+{
+    return level < s_threshold;
+}
+
+unsigned int
+logLevel()
+{
+    return s_threshold > 0 ? s_threshold - 1 : 0;
+}
+
+static void
+log( const char* msg, unsigned int debugLevel )
+{
+    if ( true )
     {
         QMutexLocker lock( &s_mutex );
 
         // If we don't format the date as a Qt::ISODate then we get a crash when
         // logging at exit as Qt tries to use QLocale to format, but QLocale is
         // on its way out.
-        logfile << QDate::currentDate().toString( Qt::ISODate ).toUtf8().data()
-                << " - "
-                << QTime::currentTime().toString().toUtf8().data()
-                << " [" << QString::number( debugLevel ).toUtf8().data() << "]: "
-                << msg << endl;
+        logfile << QDate::currentDate().toString( Qt::ISODate ).toUtf8().data() << " - "
+                << QTime::currentTime().toString().toUtf8().data() << " ["
+                << QString::number( debugLevel ).toUtf8().data() << "]: " << msg << std::endl;
 
         logfile.flush();
     }
@@ -84,41 +94,37 @@ log( const char* msg, unsigned int debugLevel, bool toDisk = true )
     {
         QMutexLocker lock( &s_mutex );
 
-        cout << QTime::currentTime().toString().toUtf8().data()
-             << " [" << QString::number( debugLevel ).toUtf8().data() << "]: "
-             << msg << endl;
-
-        cout.flush();
+        std::cout << QTime::currentTime().toString().toUtf8().data() << " ["
+                  << QString::number( debugLevel ).toUtf8().data() << "]: " << msg << std::endl;
+        std::cout.flush();
     }
 }
 
 
-void
-CalamaresLogHandler( QtMsgType type, const QMessageLogContext& context, const QString& msg )
+static void
+CalamaresLogHandler( QtMsgType type, const QMessageLogContext&, const QString& msg )
 {
     static QMutex s_mutex;
-
-    Q_UNUSED( context );
 
     QByteArray ba = msg.toUtf8();
     const char* message = ba.constData();
 
     QMutexLocker locker( &s_mutex );
-    switch( type )
+    switch ( type )
     {
-        case QtDebugMsg:
-            log( message, LOGVERBOSE );
-            break;
+    case QtDebugMsg:
+        log( message, LOGVERBOSE );
+        break;
 
-        case QtInfoMsg:
-            log( message, 1 );
-            break;
+    case QtInfoMsg:
+        log( message, 1 );
+        break;
 
-        case QtCriticalMsg:
-        case QtWarningMsg:
-        case QtFatalMsg:
-            log( message, 0 );
-            break;
+    case QtCriticalMsg:
+    case QtWarningMsg:
+    case QtFatalMsg:
+        log( message, 0 );
+        break;
     }
 }
 
@@ -126,7 +132,7 @@ CalamaresLogHandler( QtMsgType type, const QMessageLogContext& context, const QS
 QString
 logFile()
 {
-    return CalamaresUtils::appLogDir().filePath( "Calamares.log" );
+    return CalamaresUtils::appLogDir().filePath( "session.log" );
 }
 
 
@@ -153,28 +159,76 @@ setupLogfile()
         }
     }
 
+    // Since the log isn't open yet, this probably only goes to stdout
     cDebug() << "Using log file:" << logFile();
 
-    logfile.open( logFile().toLocal8Bit(), ios::app );
+    // Lock while (re-)opening the logfile
+    {
+        QMutexLocker lock( &s_mutex );
+        logfile.open( logFile().toLocal8Bit(), std::ios::app );
+        if ( logfile.tellp() )
+        {
+            logfile << "\n\n" << std::endl;
+        }
+        logfile << "=== START CALAMARES " << CALAMARES_VERSION << std::endl;
+    }
+
     qInstallMessageHandler( CalamaresLogHandler );
 }
 
-}
-
-using namespace Logger;
-
-CLog::CLog( unsigned int debugLevel )
+CDebug::CDebug( unsigned int debugLevel, const char* func )
     : QDebug( &m_msg )
     , m_debugLevel( debugLevel )
+    , m_funcinfo( func )
 {
+    if ( debugLevel <= LOGERROR )
+    {
+        m_msg = QStringLiteral( "ERROR:" );
+    }
+    else if ( debugLevel <= LOGWARNING )
+    {
+        m_msg = QStringLiteral( "WARNING:" );
+    }
 }
 
 
-CLog::~CLog()
+CDebug::~CDebug()
 {
+    if ( m_funcinfo )
+    {
+        m_msg.prepend( s_Continuation );  // Prepending, so back-to-front
+        m_msg.prepend( m_funcinfo );
+    }
     log( m_msg.toUtf8().data(), m_debugLevel );
 }
 
-Logger::CDebug::~CDebug()
+constexpr FuncSuppressor::FuncSuppressor( const char s[] )
+    : m_s( s )
 {
 }
+
+const constexpr FuncSuppressor Continuation( s_Continuation );
+const constexpr FuncSuppressor SubEntry( s_SubEntry );
+
+QString
+toString( const QVariant& v )
+{
+    auto t = v.type();
+
+    if ( t == QVariant::List )
+    {
+        QStringList s;
+        auto l = v.toList();
+        for ( auto lit = l.constBegin(); lit != l.constEnd(); ++lit )
+        {
+            s << lit->toString();
+        }
+        return s.join( ", " );
+    }
+    else
+    {
+        return v.toString();
+    }
+}
+
+}  // namespace Logger

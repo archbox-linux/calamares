@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *
@@ -19,7 +19,7 @@
 #ifndef CREATEUSERJOB_H
 #define CREATEUSERJOB_H
 
-#include <Job.h>
+#include "Job.h"
 
 #include <QStringList>
 
@@ -27,10 +27,7 @@ class CreateUserJob : public Calamares::Job
 {
     Q_OBJECT
 public:
-    CreateUserJob( const QString& userName,
-                   const QString& fullName,
-                   bool autologin,
-                   const QStringList& defaultGroups );
+    CreateUserJob( const QString& userName, const QString& fullName, bool autologin, const QStringList& defaultGroups );
     QString prettyName() const override;
     QString prettyDescription() const override;
     QString prettyStatusMessage() const override;

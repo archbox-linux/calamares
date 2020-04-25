@@ -20,10 +20,12 @@
 #ifndef NETINSTALLVIEWSTEP_H
 #define NETINSTALLVIEWSTEP_H
 
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
+#include "Config.h"
 
-#include <PluginDllMacro.h>
+#include "DllMacro.h"
+#include "locale/TranslatableConfiguration.h"
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
 
 #include <QVariant>
 
@@ -38,12 +40,8 @@ public:
     virtual ~NetInstallViewStep() override;
 
     QString prettyName() const override;
-    QString prettyStatus() const override;
 
     QWidget* widget() override;
-
-    void next() override;
-    void back() override;
 
     bool isNextEnabled() const override;
     bool isBackEnabled() const override;
@@ -51,7 +49,7 @@ public:
     bool isAtBeginning() const override;
     bool isAtEnd() const override;
 
-    QList< Calamares::job_ptr > jobs() const override;
+    Calamares::JobList jobs() const override;
 
     void onActivate() override;
 
@@ -61,16 +59,16 @@ public:
     void setConfigurationMap( const QVariantMap& configurationMap ) override;
 
 public slots:
-    void nextIsReady( bool );
+    void nextIsReady();
 
 private:
-    NetInstallPage* m_widget;
-    bool m_nextEnabled;
-    QString m_prettyStatus;
+    Config m_config;
 
-    QList< Calamares::job_ptr > m_jobs;
+    NetInstallPage* m_widget;
+    CalamaresUtils::Locale::TranslatedString* m_sidebarLabel;  // As it appears in the sidebar
+    bool m_nextEnabled = false;
 };
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( NetInstallViewStepFactory )
 
-#endif // NETINSTALLVIEWSTEP_H
+#endif  // NETINSTALLVIEWSTEP_H

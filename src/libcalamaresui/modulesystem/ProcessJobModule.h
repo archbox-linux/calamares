@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -20,9 +20,10 @@
 #ifndef CALAMARES_PROCESSJOBMODULE_H
 #define CALAMARES_PROCESSJOBMODULE_H
 
-#include "Module.h"
+#include "DllMacro.h"
+#include "modulesystem/Module.h"
 
-#include "UiDllMacro.h"
+#include <chrono>
 
 namespace Calamares
 {
@@ -34,23 +35,27 @@ public:
     Interface interface() const override;
 
     void loadSelf() override;
-    QList< job_ptr > jobs() const override;
+    JobList jobs() const override;
 
 protected:
     void initFrom( const QVariantMap& moduleDescriptor ) override;
 
 private:
-    friend class Module;
     explicit ProcessJobModule();
     virtual ~ProcessJobModule() override;
 
     QString m_command;
     QString m_workingPath;
-    int m_secondsTimeout;
+    std::chrono::seconds m_secondsTimeout;
     bool m_runInChroot;
     job_ptr m_job;
+
+    friend Module* Calamares::moduleFromDescriptor( const ModuleSystem::Descriptor& moduleDescriptor,
+                                                    const QString& instanceId,
+                                                    const QString& configFileName,
+                                                    const QString& moduleDirectory );
 };
 
-} // namespace Calamares
+}  // namespace Calamares
 
-#endif // CALAMARES_PROCESSJOBMODULE_H
+#endif  // CALAMARES_PROCESSJOBMODULE_H

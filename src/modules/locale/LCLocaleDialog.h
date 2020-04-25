@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *
@@ -37,4 +37,4 @@ private:
     QListWidget* m_localesWidget;
 };
 
-#endif // LCLOCALEDIALOG_H
+#endif  // LCLOCALEDIALOG_H

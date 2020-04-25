@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright (c) 2017, Kyle Robbertze <kyle@aims.ac.za>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, 2020, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,14 +19,12 @@
 
 #include "PackageModel.h"
 
-#include "utils/YamlUtils.h"
+#include "utils/Variant.h"
+#include "utils/Yaml.h"
 
-PackageModel::PackageModel( const YAML::Node& data, QObject* parent ) :
-    QAbstractItemModel( parent ),
-    m_columnHeadings()
+PackageModel::PackageModel( QObject* parent )
+    : QAbstractItemModel( parent )
 {
-    m_rootItem = new PackageTreeItem();
-    setupModelData( data, m_rootItem );
 }
 
 PackageModel::~PackageModel()
@@ -37,105 +35,116 @@ PackageModel::~PackageModel()
 QModelIndex
 PackageModel::index( int row, int column, const QModelIndex& parent ) const
 {
-    if ( !hasIndex( row, column, parent ) )
+    if ( !m_rootItem || !hasIndex( row, column, parent ) )
+    {
         return QModelIndex();
+    }
 
     PackageTreeItem* parentItem;
 
     if ( !parent.isValid() )
+    {
         parentItem = m_rootItem;
+    }
     else
-        parentItem = static_cast<PackageTreeItem*>( parent.internalPointer() );
+    {
+        parentItem = static_cast< PackageTreeItem* >( parent.internalPointer() );
+    }
 
     PackageTreeItem* childItem = parentItem->child( row );
     if ( childItem )
+    {
         return createIndex( row, column, childItem );
+    }
     else
+    {
         return QModelIndex();
+    }
 }
 
 QModelIndex
 PackageModel::parent( const QModelIndex& index ) const
 {
-    if ( !index.isValid() )
+    if ( !m_rootItem || !index.isValid() )
+    {
         return QModelIndex();
+    }
 
-    PackageTreeItem* child = static_cast<PackageTreeItem*>( index.internalPointer() );
+    PackageTreeItem* child = static_cast< PackageTreeItem* >( index.internalPointer() );
     PackageTreeItem* parent = child->parentItem();
 
     if ( parent == m_rootItem )
+    {
         return QModelIndex();
+    }
     return createIndex( parent->row(), 0, parent );
 }
 
 int
 PackageModel::rowCount( const QModelIndex& parent ) const
 {
-    if ( parent.column() > 0 )
+    if ( !m_rootItem || ( parent.column() > 0 ) )
+    {
         return 0;
+    }
 
     PackageTreeItem* parentItem;
     if ( !parent.isValid() )
+    {
         parentItem = m_rootItem;
+    }
     else
-        parentItem = static_cast<PackageTreeItem*>( parent.internalPointer() );
+    {
+        parentItem = static_cast< PackageTreeItem* >( parent.internalPointer() );
+    }
 
     return parentItem->childCount();
 }
 
 int
-PackageModel::columnCount( const QModelIndex& parent ) const
+PackageModel::columnCount( const QModelIndex& ) const
 {
-    if ( parent.isValid() )
-        return static_cast<PackageTreeItem*>( parent.internalPointer() )->columnCount();
-    return m_rootItem->columnCount();
+    return 2;
 }
 
 QVariant
 PackageModel::data( const QModelIndex& index, int role ) const
 {
-    if ( !index.isValid() )
+    if ( !m_rootItem || !index.isValid() )
+    {
         return QVariant();
+    }
 
-    PackageTreeItem* item = static_cast<PackageTreeItem*>( index.internalPointer() );
-    if ( index.column() == 0 && role == Qt::CheckStateRole )
-        return item->isSelected();
-
-    if ( item->isHidden() && role == Qt::DisplayRole ) // Hidden group
+    PackageTreeItem* item = static_cast< PackageTreeItem* >( index.internalPointer() );
+    switch ( role )
+    {
+    case Qt::CheckStateRole:
+        return index.column() == NameColumn ? ( item->isImmutable() ? QVariant() : item->isSelected() ) : QVariant();
+    case Qt::DisplayRole:
+        return item->isHidden() ? QVariant() : item->data( index.column() );
+    case MetaExpandRole:
+        return item->isHidden() ? false : item->expandOnStart();
+    default:
         return QVariant();
-
-    if ( role == Qt::DisplayRole )
-        return item->data( index.column() );
-    return QVariant();
+    }
 }
 
 bool
 PackageModel::setData( const QModelIndex& index, const QVariant& value, int role )
 {
+    if ( !m_rootItem )
+    {
+        return false;
+    }
+
     if ( role == Qt::CheckStateRole && index.isValid() )
     {
-        PackageTreeItem* item = static_cast<PackageTreeItem*>( index.internalPointer() );
-        item->setSelected( static_cast<Qt::CheckState>( value.toInt() ) );
+        PackageTreeItem* item = static_cast< PackageTreeItem* >( index.internalPointer() );
+        item->setSelected( static_cast< Qt::CheckState >( value.toInt() ) );
 
-        emit dataChanged( this->index( 0, 0 ), index.sibling( index.column(), index.row() + 1 ),
-                          QVector<int>( Qt::CheckStateRole ) );
-    }
-    return true;
-}
-
-bool
-PackageModel::setHeaderData( int section, Qt::Orientation orientation,
-                             const QVariant& value, int role )
-{
-    Q_UNUSED( role );
-
-    if ( orientation == Qt::Horizontal )
-    {
-        if ( m_columnHeadings.value( section ) != QVariant() )
-            m_columnHeadings.replace( section, value );
-        else
-            m_columnHeadings.insert( section, value );
-        emit headerDataChanged( orientation, section, section );
+        emit dataChanged( this->index( 0, 0 ),
+                          index.sibling( index.column(), index.row() + 1 ),
+                          QVector< int >( Qt::CheckStateRole ) );
     }
     return true;
 }
@@ -143,10 +152,19 @@ PackageModel::setHeaderData( int section, Qt::Orientation orientation,
 Qt::ItemFlags
 PackageModel::flags( const QModelIndex& index ) const
 {
-    if ( !index.isValid() )
-        return 0;
-    if ( index.column() == 0 )
+    if ( !m_rootItem || !index.isValid() )
+    {
+        return Qt::ItemFlags();
+    }
+    if ( index.column() == NameColumn )
+    {
+        PackageTreeItem* item = static_cast< PackageTreeItem* >( index.internalPointer() );
+        if ( item->isImmutable() )
+        {
+            return QAbstractItemModel::flags( index );  //Qt::NoItemFlags;
+        }
         return Qt::ItemIsUserCheckable | QAbstractItemModel::flags( index );
+    }
     return QAbstractItemModel::flags( index );
 }
 
@@ -154,102 +172,119 @@ QVariant
 PackageModel::headerData( int section, Qt::Orientation orientation, int role ) const
 {
     if ( orientation == Qt::Horizontal && role == Qt::DisplayRole )
-        return m_columnHeadings.value( section );
+    {
+        return ( section == NameColumn ) ? tr( "Name" ) : tr( "Description" );
+    }
     return QVariant();
 }
 
-QList<PackageTreeItem::ItemData>
+PackageTreeItem::List
 PackageModel::getPackages() const
 {
-    QList<PackageTreeItem*> items = getItemPackages( m_rootItem );
-    for ( auto package : m_hiddenItems )
-        if ( package->hiddenSelected() )
-            items.append( getItemPackages( package ) );
-    QList<PackageTreeItem::ItemData> packages;
-    for ( auto item : items )
+    if ( !m_rootItem )
     {
-        PackageTreeItem::ItemData itemData;
-        itemData.preScript = item->parentItem()->preScript(); // Only groups have hooks
-        itemData.packageName = item->packageName(); // this seg faults
-        itemData.postScript = item->parentItem()->postScript(); // Only groups have hooks
-        itemData.isCritical = item->parentItem()->isCritical(); // Only groups are critical
-        packages.append( itemData );
+        return PackageTreeItem::List();
     }
-    return packages;
+
+    auto items = getItemPackages( m_rootItem );
+    for ( auto package : m_hiddenItems )
+    {
+        if ( package->hiddenSelected() )
+        {
+            items.append( getItemPackages( package ) );
+        }
+    }
+    return items;
 }
 
-QList<PackageTreeItem*>
+PackageTreeItem::List
 PackageModel::getItemPackages( PackageTreeItem* item ) const
 {
-    QList<PackageTreeItem*> selectedPackages;
+    PackageTreeItem::List selectedPackages;
     for ( int i = 0; i < item->childCount(); i++ )
     {
-        if ( item->child( i )->isSelected() == Qt::Unchecked )
+        auto* child = item->child( i );
+        if ( child->isSelected() == Qt::Unchecked )
+        {
             continue;
+        }
 
-        if ( !item->child( i )->childCount() ) // package
-            selectedPackages.append( item->child( i ) );
+        if ( child->isPackage() )  // package
+        {
+            selectedPackages.append( child );
+        }
         else
-            selectedPackages.append( getItemPackages( item->child( i ) ) );
+        {
+            selectedPackages.append( getItemPackages( child ) );
+        }
     }
     return selectedPackages;
-
 }
 
 void
-PackageModel::setupModelData( const YAML::Node& data, PackageTreeItem* parent )
+PackageModel::setupModelData( const QVariantList& groupList, PackageTreeItem* parent )
 {
-    for ( YAML::const_iterator it = data.begin(); it != data.end(); ++it )
+    for ( const auto& group : groupList )
     {
-        const YAML::Node itemDefinition = *it;
+        QVariantMap groupMap = group.toMap();
+        if ( groupMap.isEmpty() )
+        {
+            continue;
+        }
 
-        QString name(
-            tr( CalamaresUtils::yamlToVariant( itemDefinition["name"] ).toByteArray() ) );
-        QString description(
-            tr( CalamaresUtils::yamlToVariant( itemDefinition["description"] ).toByteArray() ) );
-
-        PackageTreeItem::ItemData itemData;
-        itemData.name = name;
-        itemData.description = description;
-
-        if ( itemDefinition["pre-install"] )
-            itemData.preScript =
-                CalamaresUtils::yamlToVariant( itemDefinition["pre-install"] ).toString();
-        if ( itemDefinition["post-install"] )
-            itemData.postScript =
-                CalamaresUtils::yamlToVariant( itemDefinition["post-install"] ).toString();
-        PackageTreeItem* item = new PackageTreeItem( itemData, parent );
-
-        if ( itemDefinition["selected"] )
-            item->setSelected(
-                CalamaresUtils::yamlToVariant( itemDefinition["selected"] ).toBool() ?
-                Qt::Checked : Qt::Unchecked );
-        else
-            item->setSelected( parent->isSelected() ); // Inherit from it's parent
-
-        if ( itemDefinition["hidden"] )
-            item->setHidden(
-                CalamaresUtils::yamlToVariant( itemDefinition["hidden"] ).toBool() );
-
-        if ( itemDefinition["critical"] )
-            item->setCritical(
-                CalamaresUtils::yamlToVariant( itemDefinition["critical"] ).toBool() );
-
-        if ( itemDefinition["packages"] )
-            for ( YAML::const_iterator packageIt = itemDefinition["packages"].begin();
-                    packageIt != itemDefinition["packages"].end(); ++packageIt )
-                item->appendChild(
-                    new PackageTreeItem( CalamaresUtils::yamlToVariant( *packageIt ).toString(), item ) );
-
-        if ( itemDefinition["subgroups"] )
-            setupModelData( itemDefinition["subgroups"], item );
-
+        PackageTreeItem* item = new PackageTreeItem( groupMap, PackageTreeItem::GroupTag { parent } );
+        if ( groupMap.contains( "selected" ) )
+        {
+            item->setSelected( CalamaresUtils::getBool( groupMap, "selected", false ) ? Qt::Checked : Qt::Unchecked );
+        }
+        if ( groupMap.contains( "packages" ) )
+        {
+            for ( const auto& packageName : groupMap.value( "packages" ).toList() )
+            {
+                if ( packageName.type() == QVariant::String )
+                {
+                    item->appendChild( new PackageTreeItem( packageName.toString(), item ) );
+                }
+                else
+                {
+                    QVariantMap m = packageName.toMap();
+                    if ( !m.isEmpty() )
+                    {
+                        item->appendChild( new PackageTreeItem( m, PackageTreeItem::PackageTag { item } ) );
+                    }
+                }
+            }
+        }
+        if ( groupMap.contains( "subgroups" ) )
+        {
+            QVariantList subgroups = groupMap.value( "subgroups" ).toList();
+            if ( !subgroups.isEmpty() )
+            {
+                setupModelData( subgroups, item );
+                // The children might be checked while the parent isn't (yet).
+                // Children are added to their parent (below) without affecting
+                // the checked-state -- do it manually.
+                item->updateSelected();
+            }
+        }
         if ( item->isHidden() )
+        {
             m_hiddenItems.append( item );
+        }
         else
         {
             item->setCheckable( true );
             parent->appendChild( item );
         }
     }
+}
+
+void
+PackageModel::setupModelData( const QVariantList& l )
+{
+    emit beginResetModel();
+    delete m_rootItem;
+    m_rootItem = new PackageTreeItem();
+    setupModelData( l, m_rootItem );
+    emit endResetModel();
 }

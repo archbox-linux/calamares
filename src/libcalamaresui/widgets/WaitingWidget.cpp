@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -20,7 +20,8 @@
 #include "WaitingWidget.h"
 
 #include "utils/CalamaresUtilsGui.h"
-#include "waitingspinnerwidget.h"
+
+#include "3rdparty/waitingspinnerwidget.h"
 
 #include <QBoxLayout>
 #include <QLabel>

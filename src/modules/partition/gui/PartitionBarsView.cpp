@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2015-2016, Teo Mrnjavac <teo@kde.org>
@@ -18,16 +18,14 @@
  */
 #include "gui/PartitionBarsView.h"
 
-#include <core/PartitionModel.h>
-#include <core/ColorUtils.h>
+#include "core/PartitionModel.h"
+#include "core/ColorUtils.h"
+
+#include "utils/CalamaresUtilsGui.h"
+#include "utils/Logger.h"
 
 #include <kpmcore/core/device.h>
 
-#include <utils/CalamaresUtilsGui.h>
-#include <utils/Logger.h>
-
-
-// Qt
 #include <QDebug>
 #include <QGuiApplication>
 #include <QMouseEvent>
@@ -57,6 +55,7 @@ PartitionBarsView::PartitionBarsView( QWidget* parent )
     , canBeSelected( []( const QModelIndex& ) { return true; } )
     , m_hoveredIndex( QModelIndex() )
 {
+    this->setObjectName("partitionBarView");
     setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Fixed );
     setFrameStyle( QFrame::NoFrame );
     setSelectionBehavior( QAbstractItemView::SelectRows );

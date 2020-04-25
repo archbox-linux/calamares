@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
@@ -18,25 +18,23 @@
  *   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "jobs/CreatePartitionTableJob.h"
+#include "CreatePartitionTableJob.h"
 
+#include "partition/PartitionIterator.h"
 #include "utils/Logger.h"
 
 // KPMcore
-#include <kpmcore/backend/corebackend.h>
-#include <kpmcore/backend/corebackendmanager.h>
-#include <kpmcore/backend/corebackenddevice.h>
-#include <kpmcore/backend/corebackendpartition.h>
-#include <kpmcore/backend/corebackendpartitiontable.h>
 #include <kpmcore/core/device.h>
 #include <kpmcore/core/partition.h>
 #include <kpmcore/core/partitiontable.h>
 #include <kpmcore/fs/filesystem.h>
+#include <kpmcore/ops/createpartitiontableoperation.h>
 #include <kpmcore/util/report.h>
 
 // Qt
-#include <QScopedPointer>
 #include <QProcess>
+
+using CalamaresUtils::Partition::PartitionIterator;
 
 CreatePartitionTableJob::CreatePartitionTableJob( Device* device, PartitionTable::TableType type )
     : m_device( device )
@@ -48,16 +46,17 @@ QString
 CreatePartitionTableJob::prettyName() const
 {
     return tr( "Create new %1 partition table on %2." )
-            .arg( PartitionTable::tableTypeToName( m_type ) )
-            .arg( m_device->deviceNode() );
+        .arg( PartitionTable::tableTypeToName( m_type ) )
+        .arg( m_device->deviceNode() );
 }
 
-QString CreatePartitionTableJob::prettyDescription() const
+QString
+CreatePartitionTableJob::prettyDescription() const
 {
     return tr( "Create new <strong>%1</strong> partition table on <strong>%2</strong> (%3)." )
-            .arg( PartitionTable::tableTypeToName( m_type ).toUpper() )
-            .arg( m_device->deviceNode() )
-            .arg( m_device->name() );
+        .arg( PartitionTable::tableTypeToName( m_type ).toUpper() )
+        .arg( m_device->deviceNode() )
+        .arg( m_device->name() );
 }
 
 
@@ -65,8 +64,16 @@ QString
 CreatePartitionTableJob::prettyStatusMessage() const
 {
     return tr( "Creating new %1 partition table on %2." )
-            .arg( PartitionTable::tableTypeToName( m_type ).toUpper() )
-            .arg( m_device->deviceNode() );
+        .arg( PartitionTable::tableTypeToName( m_type ).toUpper() )
+        .arg( m_device->deviceNode() );
+}
+
+
+static inline QDebug&
+operator<<( QDebug&& s, PartitionIterator& it )
+{
+    s << ( ( *it ) ? ( *it )->deviceNode() : QString( "<null device>" ) );
+    return s;
 }
 
 
@@ -76,48 +83,40 @@ CreatePartitionTableJob::exec()
     Report report( nullptr );
     QString message = tr( "The installer failed to create a partition table on %1." ).arg( m_device->name() );
 
-    CoreBackend* backend = CoreBackendManager::self()->backend();
-    QScopedPointer< CoreBackendDevice > backendDevice( backend->openDevice( m_device->deviceNode() ) );
-    if ( !backendDevice.data() )
+    PartitionTable* table = m_device->partitionTable();
+    cDebug() << "Creating new partition table of type" << table->typeName() << ", uncommitted yet:";
+
+    if ( Logger::logLevelEnabled( Logger::LOGDEBUG ) )
     {
-        return Calamares::JobResult::error(
-                   message,
-                   tr( "Could not open device %1." ).arg( m_device->deviceNode() )
-               );
+        for ( auto it = PartitionIterator::begin( table ); it != PartitionIterator::end( table ); ++it )
+        {
+            cDebug() << it;
+        }
+
+        QProcess lsblk;
+        lsblk.setProgram( "lsblk" );
+        lsblk.setProcessChannelMode( QProcess::MergedChannels );
+        lsblk.start();
+        lsblk.waitForFinished();
+        cDebug() << "lsblk:\n" << lsblk.readAllStandardOutput();
+
+        QProcess mount;
+        mount.setProgram( "mount" );  // Debug output only, not mounting something
+        mount.setProcessChannelMode( QProcess::MergedChannels );
+        mount.start();
+        mount.waitForFinished();
+        cDebug() << "mount:\n" << mount.readAllStandardOutput();
     }
 
-    QScopedPointer< PartitionTable > table( createTable() );
-    cDebug() << "Creating new partition table of type" << table->typeName()
-             << ", uncommitted yet:\n" << table;
+    CreatePartitionTableOperation op( *m_device, table );
+    op.setStatus( Operation::StatusRunning );
 
-    QProcess lsblk;
-    lsblk.setProgram( "lsblk" );
-    lsblk.setProcessChannelMode( QProcess::MergedChannels );
-    lsblk.start();
-    lsblk.waitForFinished();
-    cDebug() << "lsblk:\n" << lsblk.readAllStandardOutput();
-
-    QProcess mount;
-    mount.setProgram( "mount" );
-    mount.setProcessChannelMode( QProcess::MergedChannels );
-    mount.start();
-    mount.waitForFinished();
-    cDebug() << "mount:\n" << mount.readAllStandardOutput();
-
-    bool ok = backendDevice->createPartitionTable( report, *table );
-    if ( !ok )
+    if ( op.execute( report ) )
     {
-        return Calamares::JobResult::error(
-                    message,
-                    QString( "Text: %1\nCommand: %2\nOutput: %3\nStatus: %4" )
-                        .arg( report.toText() )
-                        .arg( report.command() )
-                        .arg( report.output() )
-                        .arg( report.status() )
-               );
+        return Calamares::JobResult::ok();
     }
 
-    return Calamares::JobResult::ok();
+    return Calamares::JobResult::error( message, report.toText() );
 }
 
 void
@@ -133,10 +132,8 @@ CreatePartitionTableJob::updatePreview()
 PartitionTable*
 CreatePartitionTableJob::createTable()
 {
-    cDebug() << "CreatePartitionTableJob::createTable trying to make table for device"
-             << m_device->deviceNode();
+    cDebug() << "CreatePartitionTableJob::createTable trying to make table for device" << m_device->deviceNode();
     return new PartitionTable( m_type,
                                PartitionTable::defaultFirstUsable( *m_device, m_type ),
-                               PartitionTable::defaultLastUsable( *m_device, m_type )
-                             );
+                               PartitionTable::defaultLastUsable( *m_device, m_type ) );
 }

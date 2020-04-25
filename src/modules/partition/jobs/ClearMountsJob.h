@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *
@@ -19,7 +19,7 @@
 #ifndef CLEARMOUNTSJOB_H
 #define CLEARMOUNTSJOB_H
 
-#include <Job.h>
+#include "Job.h"
 
 class Device;
 
@@ -35,6 +35,7 @@ public:
     QString prettyName() const override;
     QString prettyStatusMessage() const override;
     Calamares::JobResult exec() override;
+
 private:
     QString tryUmount( const QString& partPath );
     QString tryClearSwap( const QString& partPath );
@@ -43,4 +44,4 @@ private:
     Device* m_device;
 };
 
-#endif // CLEARMOUNTSJOB_H
+#endif  // CLEARMOUNTSJOB_H

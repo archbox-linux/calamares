@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017, 2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 
 // Qt
 #include <QAbstractItemModel>
+#include <QMutex>
 
 class Device;
 class Partition;
@@ -60,6 +61,7 @@ public:
 
         ResetHelper( const ResetHelper& ) = delete;
         ResetHelper& operator=( const ResetHelper& ) = delete;
+
     private:
         PartitionModel* m_model;
     };
@@ -74,7 +76,7 @@ public:
         FileSystemLabelRole,
         FileSystemTypeRole,
         PartitionPathRole,
-        PartitionPtrRole,   // passed as void*, use sparingly
+        PartitionPtrRole,  // passed as void*, use sparingly
         OsproberNameRole,
         OsproberPathRole,
         OsproberCanBeResizedRole,
@@ -88,7 +90,7 @@ public:
         FileSystemColumn,
         MountPointColumn,
         SizeColumn,
-        ColumnCount // Must remain last
+        ColumnCount  // Must remain last
     };
 
     PartitionModel( QObject* parent = nullptr );
@@ -107,16 +109,16 @@ public:
 
     Partition* partitionForIndex( const QModelIndex& index ) const;
 
-    Device* device() const
-    {
-        return m_device;
-    }
+    Device* device() const { return m_device; }
 
     void update();
 
 private:
+    friend class ResetHelper;
+
     Device* m_device;
     OsproberEntryList m_osproberEntries;
+    mutable QMutex m_lock;
 };
 
 #endif /* PARTITIONMODEL_H */

@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2018, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -18,14 +19,10 @@
 
 #include "JobQueue.h"
 
-#include "Job.h"
-#include "GlobalStorage.h"
-#include "utils/Logger.h"
-
 #include "CalamaresConfig.h"
-#ifdef WITH_PYTHON
-#include "PythonHelper.h"
-#endif
+#include "GlobalStorage.h"
+#include "Job.h"
+#include "utils/Logger.h"
 
 #include <QThread>
 
@@ -34,46 +31,76 @@ namespace Calamares
 
 class JobThread : public QThread
 {
-    Q_OBJECT
 public:
     JobThread( JobQueue* queue )
         : QThread( queue )
         , m_queue( queue )
         , m_jobIndex( 0 )
     {
-#ifdef WITH_PYTHON
-        new CalamaresPython::Helper( this );
-#endif
     }
 
-    void setJobs( const QList< job_ptr >& jobs )
+    virtual ~JobThread() override;
+
+    void setJobs( JobList&& jobs )
     {
         m_jobs = jobs;
+
+        qreal totalJobsWeight = 0.0;
+        for ( auto job : m_jobs )
+        {
+            totalJobsWeight += job->getJobWeight();
+        }
+        for ( auto job : m_jobs )
+        {
+            qreal jobWeight = qreal( job->getJobWeight() / totalJobsWeight );
+            m_jobWeights.append( jobWeight );
+        }
     }
 
     void run() override
     {
+        bool anyFailed = false;
+        QString message;
+        QString details;
+
         m_jobIndex = 0;
-        for( auto job : m_jobs )
+        for ( auto job : m_jobs )
         {
+            if ( anyFailed && !job->isEmergency() )
+            {
+                cDebug() << "Skipping non-emergency job" << job->prettyName();
+                ++m_jobIndex;
+                continue;
+            }
+
             emitProgress();
-            cLog() << "Starting job" << job->prettyName();
+            cDebug() << "Starting" << ( anyFailed ? "EMERGENCY JOB" : "job" ) << job->prettyName() << " (there are"
+                     << m_jobs.count() << " left)";
             connect( job.data(), &Job::progress, this, &JobThread::emitProgress );
             JobResult result = job->exec();
-            if ( !result )
+            if ( !anyFailed && !result )
             {
-                emitFailed( result.message(), result.details() );
-                emitFinished();
-                return;
+                anyFailed = true;
+                message = result.message();
+                details = result.details();
             }
+            emitProgress( 1.0 );
             ++m_jobIndex;
         }
-        emitProgress();
+        if ( anyFailed )
+        {
+            emitFailed( message, details );
+        }
+        else
+        {
+            emitProgress();
+        }
         emitFinished();
     }
 
 private:
-    QList< job_ptr > m_jobs;
+    JobList m_jobs;
+    QList< qreal > m_jobWeights;
     JobQueue* m_queue;
     int m_jobIndex;
 
@@ -84,31 +111,39 @@ private:
         jobPercent = qBound( qreal( 0 ), jobPercent, qreal( 1 ) );
 
         int jobCount = m_jobs.size();
-        QString message = m_jobIndex < jobCount
-            ? m_jobs.at( m_jobIndex )->prettyStatusMessage()
-            : tr( "Done" );
+        QString message = m_jobIndex < jobCount ? m_jobs.at( m_jobIndex )->prettyStatusMessage() : tr( "Done" );
 
-        qreal percent = ( m_jobIndex + jobPercent ) / qreal( jobCount );
+        qreal percent = 1.0;  // Pretend we're done, since the if will reset it
+        if ( m_jobIndex < jobCount )
+        {
+            qreal cumulativeProgress = 0.0;
+            for ( auto jobWeight : m_jobWeights.mid( 0, m_jobIndex ) )
+            {
+                cumulativeProgress += jobWeight;
+            }
+            percent = cumulativeProgress + ( ( m_jobWeights.at( m_jobIndex ) ) * jobPercent );
 
-        QMetaObject::invokeMethod( m_queue, "progress", Qt::QueuedConnection,
-            Q_ARG( qreal, percent ),
-            Q_ARG( QString, message )
-        );
+            Logger::CDebug( Logger::LOGVERBOSE )
+                << "[JOBQUEUE]: Progress for Job[" << m_jobIndex << "]: " << ( jobPercent * 100 ) << "% completed";
+            Logger::CDebug( Logger::LOGVERBOSE )
+                << "[JOBQUEUE]: Progress Overall: " << ( cumulativeProgress * 100 ) << "% (accumulated) + "
+                << ( ( ( m_jobWeights.at( m_jobIndex ) ) * jobPercent ) * 100 )
+                << "% (this job) = " << ( percent * 100 ) << "% (total)";
+        }
+        QMetaObject::invokeMethod(
+            m_queue, "progress", Qt::QueuedConnection, Q_ARG( qreal, percent ), Q_ARG( QString, message ) );
     }
 
     void emitFailed( const QString& message, const QString& details )
     {
-        QMetaObject::invokeMethod( m_queue, "failed", Qt::QueuedConnection,
-            Q_ARG( QString, message ),
-            Q_ARG( QString, details )
-        );
+        QMetaObject::invokeMethod(
+            m_queue, "failed", Qt::QueuedConnection, Q_ARG( QString, message ), Q_ARG( QString, details ) );
     }
 
-    void emitFinished()
-    {
-        QMetaObject::invokeMethod( m_queue, "finished", Qt::QueuedConnection );
-    }
+    void emitFinished() { QMetaObject::invokeMethod( m_queue, "finish", Qt::QueuedConnection ); }
 };
+
+JobThread::~JobThread() {}
 
 
 JobQueue* JobQueue::s_instance = nullptr;
@@ -140,6 +175,16 @@ JobQueue::JobQueue( QObject* parent )
 
 JobQueue::~JobQueue()
 {
+    if ( m_thread->isRunning() )
+    {
+        m_thread->terminate();
+        if ( !m_thread->wait( 300 ) )
+        {
+            cError() << "Could not terminate job thread (expect a crash now).";
+        }
+        delete m_thread;
+    }
+
     delete m_storage;
 }
 
@@ -148,8 +193,9 @@ void
 JobQueue::start()
 {
     Q_ASSERT( !m_thread->isRunning() );
-    m_thread->setJobs( m_jobs );
+    m_thread->setJobs( std::move( m_jobs ) );
     m_jobs.clear();
+    m_finished = false;
     m_thread->start();
 }
 
@@ -164,13 +210,18 @@ JobQueue::enqueue( const job_ptr& job )
 
 
 void
-JobQueue::enqueue( const QList< job_ptr >& jobs )
+JobQueue::enqueue( const JobList& jobs )
 {
     Q_ASSERT( !m_thread->isRunning() );
     m_jobs.append( jobs );
     emit queueChanged( m_jobs );
 }
 
-} // namespace Calamares
+void
+JobQueue::finish()
+{
+    m_finished = true;
+    emit finished();
+}
 
-#include "JobQueue.moc"
+}  // namespace Calamares

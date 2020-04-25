@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *
@@ -19,11 +19,11 @@
 #ifndef CALAMARES_PYTHONJOBMODULE_H
 #define CALAMARES_PYTHONJOBMODULE_H
 
-#include "Module.h"
+#include "DllMacro.h"
+#include "modulesystem/Module.h"
 
-#include "UiDllMacro.h"
-
-namespace Calamares {
+namespace Calamares
+{
 
 class UIDLLEXPORT PythonJobModule : public Module
 {
@@ -32,21 +32,25 @@ public:
     Interface interface() const override;
 
     void loadSelf() override;
-    QList< job_ptr > jobs() const override;
+    JobList jobs() const override;
 
 protected:
     void initFrom( const QVariantMap& moduleDescriptor ) override;
 
 private:
-    friend class Module;
     explicit PythonJobModule();
     virtual ~PythonJobModule() override;
 
     QString m_scriptFileName;
     QString m_workingPath;
     job_ptr m_job;
+
+    friend Module* Calamares::moduleFromDescriptor( const ModuleSystem::Descriptor& moduleDescriptor,
+                                                    const QString& instanceId,
+                                                    const QString& configFileName,
+                                                    const QString& moduleDirectory );
 };
 
-} // namespace Calamares
+}  // namespace Calamares
 
-#endif // CALAMARES_PYTHONJOBMODULE_H
+#endif  // CALAMARES_PYTHONJOBMODULE_H

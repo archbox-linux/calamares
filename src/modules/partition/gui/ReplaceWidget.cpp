@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
+ *   Copyright 2019-2020, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -28,6 +29,7 @@
 #include "Branding.h"
 #include "GlobalStorage.h"
 #include "JobQueue.h"
+#include "partition/FileSystem.h"
 #include "utils/CalamaresUtilsGui.h"
 #include "utils/Retranslator.h"
 
@@ -35,6 +37,9 @@
 #include <kpmcore/fs/filesystem.h>
 
 #include <QComboBox>
+
+using CalamaresUtils::Partition::untranslatedFS;
+using CalamaresUtils::Partition::userVisibleFS;
 
 ReplaceWidget::ReplaceWidget( PartitionCoreModule* core,
                               QComboBox* devicesComboBox,
@@ -85,6 +90,8 @@ ReplaceWidget::reset()
 void
 ReplaceWidget::applyChanges()
 {
+    auto gs = Calamares::JobQueue::instance()->globalStorage();
+
     PartitionModel* model = qobject_cast< PartitionModel* >( m_ui->partitionTreeView->model() );
     if ( model )
     {
@@ -93,7 +100,9 @@ ReplaceWidget::applyChanges()
         {
             Device* dev = model->device();
 
-            PartitionActions::doReplacePartition( m_core, dev, partition );
+            PartitionActions::doReplacePartition(
+                m_core, dev, partition,
+                { gs->value( "defaultFileSystemType" ).toString(), QString() } );
 
             if ( m_isEfi )
             {
@@ -102,17 +111,13 @@ ReplaceWidget::applyChanges()
                 {
                     PartitionInfo::setMountPoint(
                             efiSystemPartitions.first(),
-                            Calamares::JobQueue::instance()->
-                                globalStorage()->
-                                    value( "efiSystemPartition" ).toString() );
+                            gs->value( "efiSystemPartition" ).toString() );
                 }
                 else if ( efiSystemPartitions.count() > 1 )
                 {
                     PartitionInfo::setMountPoint(
                             efiSystemPartitions.at( m_ui->bootComboBox->currentIndex() ),
-                            Calamares::JobQueue::instance()->
-                                globalStorage()->
-                                    value( "efiSystemPartition" ).toString() );
+                            gs->value( "efiSystemPartition" ).toString() );
                 }
             }
 
@@ -142,7 +147,7 @@ ReplaceWidget::onPartitionSelected()
     bool ok = false;
     double requiredSpaceB = Calamares::JobQueue::instance()
                             ->globalStorage()
-                            ->value( "requiredStorageGB" )
+                            ->value( "requiredStorageGiB" )
                             .toDouble( &ok ) * 1024 * 1024 * 1024;
 
     PartitionModel* model = qobject_cast< PartitionModel* >( m_ui->partitionTreeView->model() );
@@ -154,7 +159,7 @@ ReplaceWidget::onPartitionSelected()
 
         Partition* partition = model->partitionForIndex( m_ui->partitionTreeView->currentIndex() );
         if ( !partition ||
-             partition->state() != Partition::StateNone )
+             partition->state() != KPM_PARTITION_STATE(None) )
         {
             updateStatus( CalamaresUtils::Fail,
                           tr( "The selected item does not appear to be a valid partition." ) );
@@ -191,8 +196,8 @@ ReplaceWidget::onPartitionSelected()
             return;
         }
 
-        QString prettyName = tr( "Data partition (%1)" )
-                             .arg( partition->fileSystem().name() );
+        QString fsNameForUser = userVisibleFS( partition->fileSystem() );
+        QString prettyName = tr( "Data partition (%1)" ).arg( fsNameForUser );
         for ( const QString& line : osproberLines )
         {
             QStringList lineColumns = line.split( ':' );
@@ -209,13 +214,13 @@ ReplaceWidget::onPartitionSelected()
                 if ( osName.isEmpty() )
                 {
                     prettyName = tr( "Unknown system partition (%1)" )
-                                 .arg( partition->fileSystem().name() );
+                                 .arg( fsNameForUser );
                 }
                 else
                 {
                     prettyName = tr ( "%1 system partition (%2)" )
                                  .arg( osName.replace( 0, 1, osName.at( 0 ).toUpper() ) )
-                                 .arg( partition->fileSystem().name() );
+                                 .arg( fsNameForUser );
                 }
                 break;
             }

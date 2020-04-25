@@ -2,15 +2,7 @@ include( CalamaresAddPlugin )
 include( CalamaresAddModuleSubdirectory )
 include( CalamaresAddLibrary )
 include( CalamaresAddBrandingSubdirectory )
-
-include_directories(
-    ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/libcalamares
-    ${CMAKE_CURRENT_LIST_DIR}/libcalamaresui
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}/libcalamares
-    ${CMAKE_CURRENT_BINARY_DIR}/libcalamaresui
-)
+include( CalamaresAddTest )
 
 # library
 add_subdirectory( libcalamares )

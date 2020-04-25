@@ -1,7 +1,9 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2018, Raul Rodrigo Segura (raurodse)
+ *   Copyright 2019, Collabora Ltd <arnaud.ferraris@collabora.com>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,111 +21,98 @@
 
 #include "CalamaresWindow.h"
 
+#include "Branding.h"
+#include "DebugWindow.h"
+#include "Settings.h"
 #include "ViewManager.h"
 #include "progresstree/ProgressTreeView.h"
 #include "utils/CalamaresUtilsGui.h"
 #include "utils/Logger.h"
-#include "utils/DebugWindow.h"
+#include "utils/Qml.h"
 #include "utils/Retranslator.h"
-#include "Settings.h"
-#include "Branding.h"
 
 #include <QApplication>
 #include <QBoxLayout>
+#include <QCloseEvent>
 #include <QDesktopWidget>
+#include <QFile>
+#include <QFileInfo>
 #include <QLabel>
+#include <QQuickWidget>
 #include <QTreeView>
 
-CalamaresWindow::CalamaresWindow( QWidget* parent )
-    : QWidget( parent )
-    , m_debugWindow( nullptr )
+static inline int
+windowDimensionToPixels( const Calamares::Branding::WindowDimension& u )
 {
-    // Hide close button
-    setWindowFlags( Qt::Window | Qt::WindowTitleHint | Qt::CustomizeWindowHint );
-
-    CALAMARES_RETRANSLATE(
-        setWindowTitle( tr( "%1 Installer" )
-                        .arg( *Calamares::Branding::ProductName ) );
-    )
-
-    using CalamaresUtils::windowMinimumHeight;
-    using CalamaresUtils::windowMinimumWidth;
-    using CalamaresUtils::windowPreferredHeight;
-    using CalamaresUtils::windowPreferredWidth;
-
-    QSize availableSize = qApp->desktop()->availableGeometry( this ).size();
-
-    cDebug() << "Available size" << availableSize;
-
-    if ( ( availableSize.width() < windowPreferredWidth ) || ( availableSize.height() < windowPreferredHeight ) )
-        cDebug() << "  Small screen detected.";
-    QSize minimumSize( qBound( windowMinimumWidth, availableSize.width(), windowPreferredWidth ),
-                       qBound( windowMinimumHeight, availableSize.height(), windowPreferredHeight ) );
-    setMinimumSize( minimumSize );
+    if ( !u.isValid() )
+    {
+        return 0;
+    }
+    if ( u.unit() == Calamares::Branding::WindowDimensionUnit::Pixies )
+    {
+        return static_cast< int >( u.value() );
+    }
+    if ( u.unit() == Calamares::Branding::WindowDimensionUnit::Fonties )
+    {
+        return static_cast< int >( u.value() * CalamaresUtils::defaultFontHeight() );
+    }
+    return 0;
+}
 
 
-    int w = qBound( minimumSize.width(), CalamaresUtils::defaultFontHeight() * 60, availableSize.width() );
-    int h = qBound( minimumSize.height(),  CalamaresUtils::defaultFontHeight() * 36, availableSize.height() );
-
-    cDebug() << "  Proposed window size:" << w << h;
-    resize( w, h );
-
-    QBoxLayout* mainLayout = new QHBoxLayout;
-    setLayout( mainLayout );
+QWidget*
+CalamaresWindow::getWidgetSidebar( int desiredWidth )
+{
+    const Calamares::Branding* const branding = Calamares::Branding::instance();
 
     QWidget* sideBox = new QWidget( this );
-    mainLayout->addWidget( sideBox );
+    sideBox->setObjectName( "sidebarApp" );
 
     QBoxLayout* sideLayout = new QVBoxLayout;
     sideBox->setLayout( sideLayout );
-    sideBox->setFixedWidth( qBound( 100, CalamaresUtils::defaultFontHeight() * 12, w < windowPreferredWidth ? 100 : 190 ) );
+    // Set this attribute into qss file
+    sideBox->setFixedWidth( desiredWidth );
     sideBox->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
 
     QHBoxLayout* logoLayout = new QHBoxLayout;
     sideLayout->addLayout( logoLayout );
     logoLayout->addStretch();
     QLabel* logoLabel = new QLabel( sideBox );
+    logoLabel->setObjectName( "logoApp" );
+    //Define all values into qss file
     {
         QPalette plt = sideBox->palette();
         sideBox->setAutoFillBackground( true );
-        plt.setColor( sideBox->backgroundRole(), Calamares::Branding::instance()->
-                      styleString( Calamares::Branding::SidebarBackground ) );
-        plt.setColor( sideBox->foregroundRole(), Calamares::Branding::instance()->
-                      styleString( Calamares::Branding::SidebarText ) );
+        plt.setColor( sideBox->backgroundRole(), branding->styleString( Calamares::Branding::SidebarBackground ) );
+        plt.setColor( sideBox->foregroundRole(), branding->styleString( Calamares::Branding::SidebarText ) );
         sideBox->setPalette( plt );
         logoLabel->setPalette( plt );
     }
     logoLabel->setAlignment( Qt::AlignCenter );
     logoLabel->setFixedSize( 80, 80 );
-    logoLabel->setPixmap( Calamares::Branding::instance()->
-                          image( Calamares::Branding::ProductLogo,
-                                 logoLabel->size() ) );
+    logoLabel->setPixmap( branding->image( Calamares::Branding::ProductLogo, logoLabel->size() ) );
     logoLayout->addWidget( logoLabel );
     logoLayout->addStretch();
 
     ProgressTreeView* tv = new ProgressTreeView( sideBox );
-    sideLayout->addWidget( tv );
+    tv->setModel( Calamares::ViewManager::instance() );
     tv->setFocusPolicy( Qt::NoFocus );
+    sideLayout->addWidget( tv );
 
-    if ( Calamares::Settings::instance()->debugMode() )
+    if ( Calamares::Settings::instance()->debugMode() || ( Logger::logLevel() >= Logger::LOGVERBOSE ) )
     {
         QPushButton* debugWindowBtn = new QPushButton;
-        CALAMARES_RETRANSLATE(
-            debugWindowBtn->setText( tr( "Show debug information" ) );
-        )
+        debugWindowBtn->setObjectName( "debugButton" );
+        CALAMARES_RETRANSLATE( debugWindowBtn->setText( tr( "Show debug information" ) ); )
         sideLayout->addWidget( debugWindowBtn );
         debugWindowBtn->setFlat( true );
         debugWindowBtn->setCheckable( true );
-        connect( debugWindowBtn, &QPushButton::clicked,
-                 this, [ = ]( bool checked )
-        {
+        connect( debugWindowBtn, &QPushButton::clicked, this, [=]( bool checked ) {
             if ( checked )
             {
                 m_debugWindow = new Calamares::DebugWindow();
                 m_debugWindow->show();
-                connect( m_debugWindow.data(), &Calamares::DebugWindow::closed,
-                         this, [ = ]()
-                {
+                connect( m_debugWindow.data(), &Calamares::DebugWindow::closed, this, [=]() {
                     m_debugWindow->deleteLater();
                     debugWindowBtn->setChecked( false );
                 } );
@@ -131,28 +120,270 @@ CalamaresWindow::CalamaresWindow( QWidget* parent )
             else
             {
                 if ( m_debugWindow )
+                {
                     m_debugWindow->deleteLater();
+                }
             }
         } );
     }
 
     CalamaresUtils::unmarginLayout( sideLayout );
+    return sideBox;
+}
+
+QWidget*
+CalamaresWindow::getQmlSidebar( int )
+{
+    CalamaresUtils::registerCalamaresModels();
+    QQuickWidget* w = new QQuickWidget( this );
+    w->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
+    w->setResizeMode( QQuickWidget::SizeRootObjectToView );
+    w->setSource( QUrl(
+        CalamaresUtils::searchQmlFile( CalamaresUtils::QmlSearch::Both, QStringLiteral( "calamares-sidebar" ) ) ) );
+    return w;
+}
+
+/** @brief Get a button-sized icon. */
+static inline QPixmap
+getButtonIcon( const QString& name )
+{
+    return Calamares::Branding::instance()->image( name, QSize( 22, 22 ) );
+}
+
+static inline void
+setButtonIcon( QPushButton* button, const QString& name )
+{
+    auto icon = getButtonIcon( name );
+    if ( button && !icon.isNull() )
+    {
+        button->setIcon( icon );
+    }
+}
+
+QWidget*
+CalamaresWindow::getWidgetNavigation()
+{
+    QWidget* navigation = new QWidget( this );
+    QBoxLayout* bottomLayout = new QHBoxLayout;
+    bottomLayout->addStretch();
+
+    // Create buttons and sets an initial icon; the icons may change
+    {
+        auto* back = new QPushButton( getButtonIcon( QStringLiteral( "go-previous" ) ), tr( "&Back" ), navigation );
+        back->setObjectName( "view-button-back" );
+        back->setEnabled( m_viewManager->backEnabled() );
+        connect( back, &QPushButton::clicked, m_viewManager, &Calamares::ViewManager::back );
+        connect( m_viewManager, &Calamares::ViewManager::backEnabledChanged, back, &QPushButton::setEnabled );
+        connect( m_viewManager, &Calamares::ViewManager::backLabelChanged, back, &QPushButton::setText );
+        connect( m_viewManager, &Calamares::ViewManager::backIconChanged, this, [=]( QString n ) {
+            setButtonIcon( back, n );
+        } );
+        bottomLayout->addWidget( back );
+    }
+    {
+        auto* next = new QPushButton( getButtonIcon( QStringLiteral( "go-next" ) ), tr( "&Next" ), navigation );
+        next->setObjectName( "view-button-next" );
+        next->setEnabled( m_viewManager->nextEnabled() );
+        connect( next, &QPushButton::clicked, m_viewManager, &Calamares::ViewManager::next );
+        connect( m_viewManager, &Calamares::ViewManager::nextEnabledChanged, next, &QPushButton::setEnabled );
+        connect( m_viewManager, &Calamares::ViewManager::nextLabelChanged, next, &QPushButton::setText );
+        connect( m_viewManager, &Calamares::ViewManager::nextIconChanged, this, [=]( QString n ) {
+            setButtonIcon( next, n );
+        } );
+        bottomLayout->addWidget( next );
+    }
+    bottomLayout->addSpacing( 12 );
+    {
+        auto* quit = new QPushButton( getButtonIcon( QStringLiteral( "dialog-cancel" ) ), tr( "&Cancel" ), navigation );
+        quit->setObjectName( "view-button-cancel" );
+        connect( quit, &QPushButton::clicked, m_viewManager, &Calamares::ViewManager::quit );
+        connect( m_viewManager, &Calamares::ViewManager::quitEnabledChanged, quit, &QPushButton::setEnabled );
+        connect( m_viewManager, &Calamares::ViewManager::quitLabelChanged, quit, &QPushButton::setText );
+        connect( m_viewManager, &Calamares::ViewManager::quitIconChanged, this, [=]( QString n ) {
+            setButtonIcon( quit, n );
+        } );
+        connect( m_viewManager, &Calamares::ViewManager::quitTooltipChanged, quit, &QPushButton::setToolTip );
+        connect( m_viewManager, &Calamares::ViewManager::quitVisibleChanged, quit, &QPushButton::setVisible );
+        bottomLayout->addWidget( quit );
+    }
+
+    bottomLayout->setContentsMargins( 0, 0, 6, 6 );
+    navigation->setLayout( bottomLayout );
+    return navigation;
+}
+
+QWidget*
+CalamaresWindow::getQmlNavigation()
+{
+    CalamaresUtils::registerCalamaresModels();
+    QQuickWidget* w = new QQuickWidget( this );
+    w->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
+    w->setResizeMode( QQuickWidget::SizeRootObjectToView );
+    w->setSource( QUrl(
+        CalamaresUtils::searchQmlFile( CalamaresUtils::QmlSearch::Both, QStringLiteral( "calamares-navigation" ) ) ) );
+    w->setMinimumHeight( 30 );  // matchine the default widgets version
+    return w;
+}
+
+/**@brief Picks one of two methods to call
+ *
+ * Calls method (member function) @p widget or @p qml with arguments @p a
+ * on the given window, based on the flavor.
+ */
+template < typename widgetMaker, typename... args >
+QWidget*
+flavoredWidget( Calamares::Branding::PanelFlavor flavor,
+                CalamaresWindow* w,
+                widgetMaker widget,
+                widgetMaker qml,
+                args... a )
+{
+    // Member-function calling syntax is (object.*member)(args)
+    switch ( flavor )
+    {
+    case Calamares::Branding::PanelFlavor::Widget:
+        return ( w->*widget )( a... );
+    case Calamares::Branding::PanelFlavor::Qml:
+        return ( w->*qml )( a... );
+    case Calamares::Branding::PanelFlavor::None:
+        return nullptr;
+    }
+    NOTREACHED return nullptr;  // All enum values handled above
+}
+
+/** @brief Adds widgets to @p layout if they belong on this @p side
+ */
+static inline void
+insertIf( QBoxLayout* layout,
+          Calamares::Branding::PanelSide side,
+          QWidget* first,
+          Calamares::Branding::PanelSide firstSide )
+{
+    if ( first && side == firstSide )
+    {
+        layout->addWidget( first );
+    }
+}
+
+CalamaresWindow::CalamaresWindow( QWidget* parent )
+    : QWidget( parent )
+    , m_debugWindow( nullptr )
+    , m_viewManager( nullptr )
+{
+    // If we can never cancel, don't show the window-close button
+    if ( Calamares::Settings::instance()->disableCancel() )
+    {
+        setWindowFlag( Qt::WindowCloseButtonHint, false );
+    }
+
+    CALAMARES_RETRANSLATE( setWindowTitle( Calamares::Settings::instance()->isSetupMode()
+                                               ? tr( "%1 Setup Program" ).arg( *Calamares::Branding::ProductName )
+                                               : tr( "%1 Installer" ).arg( *Calamares::Branding::ProductName ) ); )
+
+    const Calamares::Branding* const branding = Calamares::Branding::instance();
+
+    using CalamaresUtils::windowMinimumHeight;
+    using CalamaresUtils::windowMinimumWidth;
+    using CalamaresUtils::windowPreferredHeight;
+    using CalamaresUtils::windowPreferredWidth;
+
+    using PanelSide = Calamares::Branding::PanelSide;
+
+    // Needs to match what's checked in DebugWindow
+    this->setObjectName( "mainApp" );
+
+    QSize availableSize = qApp->desktop()->availableGeometry( this ).size();
+    QSize minimumSize( qBound( windowMinimumWidth, availableSize.width(), windowPreferredWidth ),
+                       qBound( windowMinimumHeight, availableSize.height(), windowPreferredHeight ) );
+    setMinimumSize( minimumSize );
+
+    cDebug() << "Available desktop" << availableSize << "minimum size" << minimumSize;
+
+    auto brandingSizes = branding->windowSize();
+
+    int w = qBound( minimumSize.width(), windowDimensionToPixels( brandingSizes.first ), availableSize.width() );
+    int h = qBound( minimumSize.height(), windowDimensionToPixels( brandingSizes.second ), availableSize.height() );
+
+    cDebug() << Logger::SubEntry << "Proposed window size:" << w << h;
+    resize( w, h );
+
+    m_viewManager = Calamares::ViewManager::instance( this );
+    if ( branding->windowExpands() )
+    {
+        connect( m_viewManager, &Calamares::ViewManager::ensureSize, this, &CalamaresWindow::ensureSize );
+    }
+    // NOTE: Although the ViewManager has a signal cancelEnabled() that
+    //       signals when the state of the cancel button changes (in
+    //       particular, to disable cancel during the exec phase),
+    //       we don't connect to it here. Changing the window flag
+    //       for the close button causes uncomfortable window flashing
+    //       and requires an extra show() (at least with KWin/X11) which
+    //       is too annoying. Instead, leave it up to ignoring-the-quit-
+    //       event, which is also the ViewManager's responsibility.
+
+    QBoxLayout* mainLayout = new QHBoxLayout;
+    QBoxLayout* contentsLayout = new QVBoxLayout;
+    contentsLayout->setSpacing( 0 );
+
+    QWidget* sideBox = flavoredWidget(
+        branding->sidebarFlavor(),
+        this,
+        &CalamaresWindow::getWidgetSidebar,
+        &CalamaresWindow::getQmlSidebar,
+        qBound( 100, CalamaresUtils::defaultFontHeight() * 12, w < windowPreferredWidth ? 100 : 190 ) );
+    QWidget* navigation = flavoredWidget(
+        branding->navigationFlavor(), this, &CalamaresWindow::getWidgetNavigation, &CalamaresWindow::getQmlNavigation );
+
+    // Build up the contentsLayout (a VBox) top-to-bottom
+    // .. note that the bottom is mirrored wrt. the top
+    insertIf( contentsLayout, PanelSide::Top, sideBox, branding->sidebarSide() );
+    insertIf( contentsLayout, PanelSide::Top, navigation, branding->navigationSide() );
+    contentsLayout->addWidget( m_viewManager->centralWidget() );
+    insertIf( contentsLayout, PanelSide::Bottom, navigation, branding->navigationSide() );
+    insertIf( contentsLayout, PanelSide::Bottom, sideBox, branding->sidebarSide() );
+
+    // .. and then the mainLayout left-to-right
+    insertIf( mainLayout, PanelSide::Left, sideBox, branding->sidebarSide() );
+    insertIf( mainLayout, PanelSide::Left, navigation, branding->navigationSide() );
+    mainLayout->addLayout( contentsLayout );
+    insertIf( mainLayout, PanelSide::Right, navigation, branding->navigationSide() );
+    insertIf( mainLayout, PanelSide::Right, sideBox, branding->sidebarSide() );
+
     CalamaresUtils::unmarginLayout( mainLayout );
-
-    Calamares::ViewManager* vm = Calamares::ViewManager::instance( this );
-    connect( vm, &Calamares::ViewManager::enlarge, this, &CalamaresWindow::enlarge );
-
-    mainLayout->addWidget( vm->centralWidget() );
+    CalamaresUtils::unmarginLayout( contentsLayout );
+    setLayout( mainLayout );
+    setStyleSheet( Calamares::Branding::instance()->stylesheet() );
 }
 
 void
-CalamaresWindow::enlarge( QSize enlarge )
+CalamaresWindow::ensureSize( QSize size )
 {
     auto mainGeometry = this->geometry();
     QSize availableSize = qApp->desktop()->availableGeometry( this ).size();
 
-    auto h = qBound( 0, mainGeometry.height() + enlarge.height(), availableSize.height() );
+    // We only care about vertical sizes that are big enough
+    int embiggenment = qMax( 0, size.height() - m_viewManager->centralWidget()->size().height() );
+    if ( embiggenment < 6 )
+    {
+        return;
+    }
+
+    auto h = qBound( 0, mainGeometry.height() + embiggenment, availableSize.height() );
     auto w = this->size().width();
 
     resize( w, h );
+}
+
+void
+CalamaresWindow::closeEvent( QCloseEvent* event )
+{
+    if ( ( !m_viewManager ) || m_viewManager->confirmCancelInstallation() )
+    {
+        event->accept();
+        qApp->quit();
+    }
+    else
+    {
+        event->ignore();
+    }
 }

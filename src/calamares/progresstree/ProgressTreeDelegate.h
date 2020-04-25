@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -21,7 +22,6 @@
 
 #include <QStyledItemDelegate>
 
-
 /**
  * @brief The ProgressTreeDelegate class customizes the look and feel of the
  * ProgressTreeView elements.
@@ -29,23 +29,15 @@
  */
 class ProgressTreeDelegate : public QStyledItemDelegate
 {
-    Q_OBJECT
 public:
-    explicit ProgressTreeDelegate( QAbstractItemView* parent = nullptr );
+    using QStyledItemDelegate::QStyledItemDelegate;
 
 protected:
-    QSize sizeHint( const QStyleOptionViewItem& option,
-                    const QModelIndex& index ) const override;
-    void paint( QPainter* painter,
-                const QStyleOptionViewItem& option,
-                const QModelIndex& index ) const override;
+    QSize sizeHint( const QStyleOptionViewItem& option, const QModelIndex& index ) const override;
+    void paint( QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index ) const override;
 
 private:
-    void paintViewStep( QPainter* painter,
-                        const QStyleOptionViewItem& option,
-                        const QModelIndex& index ) const;
-
-    QAbstractItemView* m_parent;
+    void paintViewStep( QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index ) const;
 };
 
-#endif // PROGRESSTREEDELEGATE_H
+#endif  // PROGRESSTREEDELEGATE_H

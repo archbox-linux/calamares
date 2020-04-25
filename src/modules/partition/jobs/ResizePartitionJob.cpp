@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
@@ -18,18 +18,23 @@
  *   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "jobs/ResizePartitionJob.h"
+#include "ResizePartitionJob.h"
+
+#include "utils/Units.h"
 
 // KPMcore
-#include <core/device.h>
-#include <ops/resizeoperation.h>
-#include <util/report.h>
+#include <kpmcore/core/device.h>
+#include <kpmcore/ops/resizeoperation.h>
+#include <kpmcore/util/report.h>
+
+using CalamaresUtils::BytesToMiB;
 
 //- ResizePartitionJob ---------------------------------------------------------
 ResizePartitionJob::ResizePartitionJob( Device* device, Partition* partition, qint64 firstSector, qint64 lastSector )
     : PartitionJob( partition )
     , m_device( device )
-    , m_oldFirstSector( partition->firstSector() ) // Keep a copy of old sectors because they will be overwritten in updatePreview()
+    , m_oldFirstSector(
+          partition->firstSector() )  // Keep a copy of old sectors because they will be overwritten in updatePreview()
     , m_oldLastSector( partition->lastSector() )
     , m_newFirstSector( firstSector )
     , m_newLastSector( lastSector )
@@ -48,43 +53,45 @@ ResizePartitionJob::prettyName() const
 QString
 ResizePartitionJob::prettyDescription() const
 {
-    return tr( "Resize <strong>%2MB</strong> partition <strong>%1</strong> to "
-               "<strong>%3MB</strong>." )
-            .arg( partition()->partitionPath() )
-            .arg( ( m_oldLastSector - m_oldFirstSector + 1 ) * partition()->sectorSize() / 1024 / 1024 )
-            .arg( ( m_newLastSector - m_newFirstSector + 1 ) * partition()->sectorSize() / 1024 / 1024 );
+    return tr( "Resize <strong>%2MiB</strong> partition <strong>%1</strong> to "
+               "<strong>%3MiB</strong>." )
+        .arg( partition()->partitionPath() )
+        .arg( ( BytesToMiB( m_oldLastSector - m_oldFirstSector + 1 ) * partition()->sectorSize() ) )
+        .arg( ( BytesToMiB( m_newLastSector - m_newFirstSector + 1 ) * partition()->sectorSize() ) );
 }
 
 
 QString
 ResizePartitionJob::prettyStatusMessage() const
 {
-    return tr( "Resizing %2MB partition %1 to "
-               "%3MB." )
-            .arg( partition()->partitionPath() )
-            .arg( ( m_oldLastSector - m_oldFirstSector + 1 ) * partition()->sectorSize() / 1024 / 1024 )
-            .arg( ( m_newLastSector - m_newFirstSector + 1 ) * partition()->sectorSize() / 1024 / 1024 );
+    return tr( "Resizing %2MiB partition %1 to "
+               "%3MiB." )
+        .arg( partition()->partitionPath() )
+        .arg( ( BytesToMiB( m_oldLastSector - m_oldFirstSector + 1 ) * partition()->sectorSize() ) )
+        .arg( ( BytesToMiB( m_newLastSector - m_newFirstSector + 1 ) * partition()->sectorSize() ) );
 }
 
 
 Calamares::JobResult
 ResizePartitionJob::exec()
 {
-    Report report (nullptr);
+    Report report( nullptr );
     // Restore partition sectors that were modified for preview
     m_partition->setFirstSector( m_oldFirstSector );
     m_partition->setLastSector( m_oldLastSector );
-    ResizeOperation op(*m_device, *m_partition, m_newFirstSector, m_newLastSector);
-    op.setStatus(Operation::StatusRunning);
-    connect(&op, &Operation::progress, [&](int percent) { emit progress(percent / 100.0); } );
+    ResizeOperation op( *m_device, *m_partition, m_newFirstSector, m_newLastSector );
+    op.setStatus( Operation::StatusRunning );
+    connect( &op, &Operation::progress, this, &ResizePartitionJob::iprogress );
 
     QString errorMessage = tr( "The installer failed to resize partition %1 on disk '%2'." )
-                       .arg( m_partition->partitionPath() )
-                       .arg( m_device->name() );
-    if (op.execute(report))
+                               .arg( m_partition->partitionPath() )
+                               .arg( m_device->name() );
+    if ( op.execute( report ) )
+    {
         return Calamares::JobResult::ok();
+    }
 
-    return Calamares::JobResult::error(errorMessage, report.toText());
+    return Calamares::JobResult::error( errorMessage, report.toText() );
 }
 
 void

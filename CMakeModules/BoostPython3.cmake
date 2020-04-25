@@ -15,6 +15,11 @@
 # libboost_python-3.4.so
 # depending on what python's targets you selected during install
 #
+# On Fedora >= 30 instead, the boost-python3-devel provides boost library with a
+# name like:
+# libboost_python37.so
+# depending on what python's targets you selected during install
+#
 # find_boost_python3() tries to find the package with different component
 # names. By default it tries "python3", "python-py$suffix" and
 # "python-$dotsuffix", where suffix is based on the `python_version` argument.
@@ -32,7 +37,12 @@ macro( _find_boost_python3_int boost_version componentname found_var )
         find_package( Boost ${boost_version} QUIET COMPONENTS ${_fbp_name} )
         string( TOUPPER ${_fbp_name} _fbp_uc_name )
         if( Boost_${_fbp_uc_name}_FOUND )
-            set( ${found_var} ${_fbp_uc_name} )
+            if( CMAKE_SYSTEM_NAME MATCHES "FreeBSD" )
+                # No upcasing
+                set( ${found_var} ${_fbp_name} )
+            else()
+                set( ${found_var} ${_fbp_uc_name} )
+            endif()
             break()
         endif()
     endforeach()
@@ -47,6 +57,10 @@ macro( find_boost_python3 boost_version python_version found_var )
     _find_boost_python3_int( ${boost_version} python-py${_fbp_python_short_version} _fbp_found )
 
     if (NOT _fbp_found)
+        _find_boost_python3_int( ${boost_version} python${_fbp_python_short_version} _fbp_found )
+    endif()
+
+    if (NOT _fbp_found)
         # The following loop changes the searched name for Gentoo based distributions
         # turns "3.4.123abc" into "3.4"
         string( REGEX REPLACE "([0-9]+)\\.([0-9]+)\\..*" "\\1.\\2" _fbp_python_short_version ${python_version} )
@@ -54,7 +68,7 @@ macro( find_boost_python3 boost_version python_version found_var )
     endif()
 
     set( ${found_var} ${_fbp_found} )
-
+    
     # This is superfluous, but allows proper reporting in the features list
     if ( _fbp_found )
         find_package( Boost ${boost_version} COMPONENTS ${_fbp_found} )

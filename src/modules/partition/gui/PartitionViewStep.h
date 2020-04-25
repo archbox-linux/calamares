@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2014-2016, Teo Mrnjavac <teo@kde.org>
@@ -21,17 +21,23 @@
 #ifndef PARTITIONVIEWSTEP_H
 #define PARTITIONVIEWSTEP_H
 
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
 
-#include <PluginDllMacro.h>
+#include "DllMacro.h"
+
+#include "core/PartitionActions.h"
 
 #include <QObject>
+#include <QSet>
 
 class ChoicePage;
 class PartitionPage;
 class PartitionCoreModule;
 class QStackedWidget;
+class WaitingWidget;
+
+template<typename T> class QFutureWatcher;
 
 /**
  * The starting point of the module. Instantiates PartitionCoreModule,
@@ -64,7 +70,9 @@ public:
 
     void setConfigurationMap( const QVariantMap& configurationMap ) override;
 
-    QList< Calamares::job_ptr > jobs() const override;
+    Calamares::JobList jobs() const override;
+
+    Calamares::RequirementsList checkRequirements() override;
 
 private:
     void initPartitionCoreModule();
@@ -75,7 +83,12 @@ private:
     ChoicePage*       m_choicePage;
     PartitionPage*    m_manualPartitionPage;
 
-    QWidget*          m_waitingWidget;
+    WaitingWidget* m_waitingWidget;
+    QFutureWatcher<void>* m_future;
+
+    QSet< PartitionActions::Choices::SwapChoice > m_swapChoices;
+
+    qreal m_requiredStorageGiB;  // May duplicate setting in the welcome module
 };
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( PartitionViewStepFactory )

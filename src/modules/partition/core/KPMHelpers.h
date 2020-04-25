@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014,      Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2015-2016, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -33,6 +34,16 @@ class Partition;
 class PartitionNode;
 class PartitionRole;
 
+#if defined( WITH_KPMCORE4API )
+#define KPM_PARTITION_FLAG( x ) PartitionTable::Flag::x
+#define KPM_PARTITION_STATE( x ) Partition::State::x
+#define KPM_PARTITION_FLAG_ESP PartitionTable::Flag::Boot
+#else
+#define KPM_PARTITION_FLAG( x ) PartitionTable::Flag##x
+#define KPM_PARTITION_STATE( x ) Partition::State##x
+#define KPM_PARTITION_FLAG_ESP PartitionTable::FlagEsp
+#endif
+
 /**
  * Helper functions to manipulate partitions
  */
@@ -40,44 +51,10 @@ namespace KPMHelpers
 {
 
 /**
- * Thin wrapper on top of CoreBackendManager. Hides things like initializing the
- * Config instance or instantiating the backend.
- *
- * Initialize PartitionManager Config object and load a PartitionManager
- * backend. It loads the "libparted" plugin by default, but this can be
- * overloaded by settings the environment variable KPMCORE_BACKEND. Setting it to
- * "dummy" will load the dummy plugin instead.
- *
- * @return true if initialization was successful.
- */
-bool initKPMcore();
-
-bool isPartitionFreeSpace( Partition* );
-
-/**
- * Returns true if the partition is planned to be created by the installer as
- * opposed to already existing on the disk.
- */
-bool isPartitionNew( Partition* );
-
-/**
  * Iterates on all devices and return the first partition which is associated
  * with mountPoint. This uses PartitionInfo::mountPoint(), not Partition::mountPoint()
  */
 Partition* findPartitionByMountPoint( const QList< Device* >& devices, const QString& mountPoint );
-
-/**
- * Iterates on all devices and partitions and returns a pointer to the Partition object
- * for the given path, or nullptr if a Partition for the given path cannot be found.
- */
-Partition* findPartitionByPath( const QList< Device* >& devices, const QString& path );
-
-/**
- * Iterates on all devices and partitions and returns a list of pointers to the Partition
- * objects that satisfy the conditions defined in the criterion function.
- */
-QList< Partition* > findPartitions( const QList< Device* >& devices,
-                                    std::function< bool ( Partition* ) > criterionFunction );
 
 /**
  * Helper function to create a new Partition object (does not create anything
@@ -89,7 +66,7 @@ Partition* createNewPartition( PartitionNode* parent,
                                FileSystem::Type fsType,
                                qint64 firstSector,
                                qint64 lastSector,
-                               PartitionTable::Flags flags = PartitionTable::FlagNone );
+                               PartitionTable::Flags flags );
 
 Partition* createNewEncryptedPartition( PartitionNode* parent,
                                         const Device& device,
@@ -98,11 +75,10 @@ Partition* createNewEncryptedPartition( PartitionNode* parent,
                                         qint64 firstSector,
                                         qint64 lastSector,
                                         const QString& passphrase,
-                                        PartitionTable::Flags flags = PartitionTable::FlagNone );
+                                        PartitionTable::Flags flags );
 
 Partition* clonePartition( Device* device, Partition* partition );
 
-QString prettyNameForFileSystemType( FileSystem::Type t );
-}
+}  // namespace KPMHelpers
 
 #endif /* KPMHELPERS_H */

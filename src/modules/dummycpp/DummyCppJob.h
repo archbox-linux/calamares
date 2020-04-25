@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2016, Kevin Kofler <kevin.kofler@chello.at>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -23,11 +23,11 @@
 #include <QObject>
 #include <QVariantMap>
 
-#include <CppJob.h>
+#include "CppJob.h"
 
-#include <utils/PluginFactory.h>
+#include "utils/PluginFactory.h"
 
-#include <PluginDllMacro.h>
+#include "DllMacro.h"
 
 class PLUGINDLLEXPORT DummyCppJob : public Calamares::CppJob
 {
@@ -49,4 +49,4 @@ private:
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( DummyCppJobFactory )
 
-#endif // DUMMYCPPJOB_H
+#endif  // DUMMYCPPJOB_H

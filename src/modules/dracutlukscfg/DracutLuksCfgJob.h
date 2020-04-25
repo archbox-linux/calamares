@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2016, Kevin Kofler <kevin.kofler@chello.at>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -23,11 +23,11 @@
 #include <QObject>
 #include <QVariantMap>
 
-#include <CppJob.h>
+#include "CppJob.h"
 
-#include <utils/PluginFactory.h>
+#include "utils/PluginFactory.h"
 
-#include <PluginDllMacro.h>
+#include "DllMacro.h"
 
 class PLUGINDLLEXPORT DracutLuksCfgJob : public Calamares::CppJob
 {
@@ -42,11 +42,11 @@ public:
     Calamares::JobResult exec() override;
 
 private:
-    static const QLatin1Literal CONFIG_FILE;
-    static const char *CONFIG_FILE_HEADER;
-    static const char *CONFIG_FILE_CRYPTTAB_KEYFILE_LINE;
-    static const char *CONFIG_FILE_CRYPTTAB_LINE;
-    static const QLatin1Literal CONFIG_FILE_SWAPLINE;
+    static const QLatin1String CONFIG_FILE;
+    static const char* CONFIG_FILE_HEADER;
+    static const char* CONFIG_FILE_CRYPTTAB_KEYFILE_LINE;
+    static const char* CONFIG_FILE_CRYPTTAB_LINE;
+    static const QLatin1String CONFIG_FILE_SWAPLINE;
 
     static QString rootMountPoint();
     static QVariantList partitions();
@@ -57,4 +57,4 @@ private:
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( DracutLuksCfgJobFactory )
 
-#endif // DRACUTLUKSCFGJOB_H
+#endif  // DRACUTLUKSCFGJOB_H

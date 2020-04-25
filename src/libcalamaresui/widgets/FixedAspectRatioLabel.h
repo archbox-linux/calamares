@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -31,11 +31,11 @@ public:
     virtual ~FixedAspectRatioLabel() override;
 
 public slots:
-    void setPixmap( const QPixmap &pixmap );
+    void setPixmap( const QPixmap& pixmap );
     void resizeEvent( QResizeEvent* event ) override;
 
 private:
     QPixmap m_pixmap;
 };
 
-#endif // FIXEDASPECTRATIOLABEL_H
+#endif  // FIXEDASPECTRATIOLABEL_H

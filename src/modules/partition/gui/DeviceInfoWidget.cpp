@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015-2016, Teo Mrnjavac <teo@kde.org>
  *
@@ -39,7 +39,8 @@ DeviceInfoWidget::DeviceInfoWidget( QWidget* parent )
     setLayout( mainLayout );
 
     CalamaresUtils::unmarginLayout( mainLayout );
-
+    m_ptLabel->setObjectName("deviceInfoLabel");
+    m_ptIcon->setObjectName("deviceInfoIcon");
     mainLayout->addWidget( m_ptIcon );
     mainLayout->addWidget( m_ptLabel );
 
@@ -64,7 +65,7 @@ DeviceInfoWidget::DeviceInfoWidget( QWidget* parent )
     m_ptIcon->setPalette( palette );
     m_ptLabel->setPalette( palette );
 
-    CALAMARES_RETRANSLATE( retranslateUi(); )
+    CALAMARES_RETRANSLATE_SLOT( &DeviceInfoWidget::retranslateUi )
 }
 
 

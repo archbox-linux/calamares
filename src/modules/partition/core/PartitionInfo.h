@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
+ *   Copyright 2018, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -20,6 +21,8 @@
 
 #include <QHash>
 #include <QString>
+
+#include <kpmcore/core/partitiontable.h>
 
 class Partition;
 
@@ -45,6 +48,9 @@ void setMountPoint( Partition* partition, const QString& value );
 bool format( Partition* partition );
 void setFormat( Partition* partition, bool value );
 
+PartitionTable::Flags flags( const Partition* partition );
+void setFlags( Partition* partition, PartitionTable::Flags f );
+
 void reset( Partition* partition );
 
 /**
@@ -54,6 +60,6 @@ void reset( Partition* partition );
  */
 bool isDirty( Partition* partition );
 
-};
+};  // namespace PartitionInfo
 
 #endif /* PARTITIONINFO_H */

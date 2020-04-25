@@ -1,33 +1,65 @@
+# === This file is part of Calamares - <https://github.com/calamares> ===
+#
+#   Calamares is free software: you can redistribute it and/or modify
+#   it under the terms of the GNU General Public License as published by
+#   the Free Software Foundation, either version 3 of the License, or
+#   (at your option) any later version.
+#
+#   Calamares is distributed in the hope that it will be useful,
+#   but WITHOUT ANY WARRANTY; without even the implied warranty of
+#   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#   GNU General Public License for more details.
+#
+#   You should have received a copy of the GNU General Public License
+#   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
+#
+#   SPDX-License-Identifier: GPL-3.0+
+#   License-Filename: LICENSE
+#
+###
+#
+# Support functions for building plugins.
+#
+# Usage:
+#
+# calamares_add_library(
+#   library-name
+#   EXPORT_MACRO macro-name
+#   TARGET_TYPE <STATIC|MODULE|...>
+#   EXPORT export-name
+#   VERSION version
+#   SOVERSION version
+#   INSTALL_BINDIR dir
+#   RESOURCES resource-file
+#   SOURCES source-file...
+#   UI ui-file...
+#   LINK_LIBRARIES lib...
+#   LINK_PRIVATE_LIBRARIES lib...
+#   COMPILE_DEFINITIONS def...
+#   [NO_INSTALL]
+#   [NO_VERSION]
+# )
+#
+# The COMPILE_DEFINITIONS are set on the resulting module with a suitable
+# flag (i.e. `-D`) so only state the name (optionally, also the value)
+# without a `-D` prefixed to it. Pass in a CMake list as needed.
 include( CMakeParseArguments )
+include( CalamaresAutomoc )
 
 function(calamares_add_library)
     # parse arguments (name needs to be saved before passing ARGN into the macro)
     set(NAME ${ARGV0})
     set(options NO_INSTALL NO_VERSION)
-    set(oneValueArgs NAME TYPE EXPORT_MACRO TARGET TARGET_TYPE EXPORT VERSION SOVERSION INSTALL_BINDIR RESOURCES)
-    set(multiValueArgs SOURCES UI LINK_LIBRARIES LINK_PRIVATE_LIBRARIES COMPILE_DEFINITIONS QT5_MODULES)
+    set(oneValueArgs NAME EXPORT_MACRO TARGET_TYPE EXPORT VERSION SOVERSION INSTALL_BINDIR RESOURCES)
+    set(multiValueArgs SOURCES UI LINK_LIBRARIES LINK_PRIVATE_LIBRARIES COMPILE_DEFINITIONS)
     cmake_parse_arguments(LIBRARY "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     set(LIBRARY_NAME ${NAME})
-
-
-#    message("*** Arguments for ${LIBRARY_NAME}")
-#    message("Sources: ${LIBRARY_SOURCES}")
-#    message("Link libraries: ${LIBRARY_LINK_LIBRARIES}")
-#    message("UI: ${LIBRARY_UI}")
-#    message("TARGET_TYPE: ${LIBRARY_TARGET_TYPE}")
-#    message("EXPORT_MACRO: ${LIBRARY_EXPORT_MACRO}")
-#    message("NO_INSTALL: ${LIBRARY_NO_INSTALL}")
 
     set(target ${LIBRARY_NAME})
 
     # qt stuff
     include_directories(${CMAKE_CURRENT_LIST_DIR})
     include_directories(${CMAKE_CURRENT_BINARY_DIR})
-
-    if(LIBRARY_UI)
-        qt5_wrap_ui(LIBRARY_UI_SOURCES ${LIBRARY_UI})
-        list(APPEND LIBRARY_SOURCES ${LIBRARY_UI_SOURCES})
-    endif()
 
     # add resources from current dir
     if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/${LIBRARY_RESOURCES}")
@@ -45,26 +77,22 @@ function(calamares_add_library)
         add_library(${target} SHARED ${LIBRARY_SOURCES})
     endif()
 
-    # definitions - can this be moved into set_target_properties below?
-    add_definitions(${QT_DEFINITIONS})
-    set_target_properties(${target} PROPERTIES AUTOMOC TRUE)
+    calamares_automoc(${target})
+    if(LIBRARY_UI)
+        calamares_autouic(${target} ${LIBRARY_UI})
+    endif()
 
     if(LIBRARY_EXPORT_MACRO)
         set_target_properties(${target} PROPERTIES COMPILE_DEFINITIONS ${LIBRARY_EXPORT_MACRO})
     endif()
 
     if(LIBRARY_COMPILE_DEFINITIONS)
-        # Dear CMake, i hate you! Sincerely, domme
-        # At least in CMake 2.8.8, you CANNOT set more than one COMPILE_DEFINITIONS value
-        # only takes the first one if called multiple times or bails out with wrong number of arguments
-        # when passing in a list, thus i redefine the export macro here in hope it won't mess up other targets
-        add_definitions( "-D${LIBRARY_EXPORT_MACRO}" )
-
-        set_target_properties(${target} PROPERTIES COMPILE_DEFINITIONS ${LIBRARY_COMPILE_DEFINITIONS})
+        set( _lib_definitions "${LIBRARY_EXPORT_MACRO}" ${LIBRARY_COMPILE_DEFINITIONS} )
+        set_target_properties(${target} PROPERTIES COMPILE_DEFINITIONS "${_lib_definitions}")
     endif()
 
     # add link targets
-    target_link_libraries(${target} 
+    target_link_libraries(${target}
         LINK_PUBLIC ${CALAMARES_LIBRARIES}
         Qt5::Core
         Qt5::Gui
@@ -96,9 +124,6 @@ function(calamares_add_library)
     else()
         set(LIBRARY_INSTALL_LIBDIR "${LIBRARY_INSTALL_BINDIR}")
     endif()
-
-    #message("INSTALL_BINDIR: ${LIBRARY_INSTALL_BINDIR}")
-    #message("INSTALL_LIBDIR: ${LIBRARY_INSTALL_LIBDIR}")
 
     # make installation optional, maybe useful for dummy plugins one day
     if(NOT LIBRARY_NO_INSTALL)

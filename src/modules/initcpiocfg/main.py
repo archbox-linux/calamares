@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# === This file is part of Calamares - <http://github.com/calamares> ===
+# === This file is part of Calamares - <https://github.com/calamares> ===
 #
 #   Copyright 2014, Rohan Garg <rohan@kde.org>
-#   Copyright 2015, Philip Müller <philm@manjaro.org>
+#   Copyright 2015,2019-2020, Philip Müller <philm@manjaro.org>
 #   Copyright 2017, Alf Gaida <agaida@sidution.org>
+#   Copyright 2019, Adriaan de Groot <groot@kde.org>
 #
 #   Calamares is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -21,8 +22,19 @@
 #   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
 
 import libcalamares
+from libcalamares.utils import debug, target_env_call
 import os
 from collections import OrderedDict
+
+import gettext
+_ = gettext.translation("calamares-python",
+                        localedir=libcalamares.utils.gettext_path(),
+                        languages=libcalamares.utils.gettext_languages(),
+                        fallback=True).gettext
+
+
+def pretty_name():
+    return _("Configuring mkinitcpio.")
 
 
 def cpuinfo():
@@ -89,6 +101,17 @@ def write_mkinitcpio_lines(hooks, modules, files, root_mount_point):
     with open(path, "w") as mkinitcpio_file:
         mkinitcpio_file.write("\n".join(mklins) + "\n")
 
+def detect_plymouth():
+    """
+    Checks existence (runnability) of plymouth in the target system.
+
+    @return True if plymouth exists in the target, False otherwise
+    """
+    # Used to only check existence of path /usr/bin/plymouth in target
+    isPlymouth = target_env_call(["sh", "-c", "which plymouth"])
+    debug("which plymouth exit code: {!s}".format(isPlymouth))
+
+    return isPlymouth == 0
 
 def modify_mkinitcpio_conf(partitions, root_mount_point):
     """
@@ -100,6 +123,7 @@ def modify_mkinitcpio_conf(partitions, root_mount_point):
     cpu = cpuinfo()
     swap_uuid = ""
     btrfs = ""
+    lvm2 = ""
     hooks = ["base", "udev", "autodetect", "modconf", "block", "keyboard",
              "keymap"]
     modules = []
@@ -109,11 +133,14 @@ def modify_mkinitcpio_conf(partitions, root_mount_point):
     unencrypted_separate_boot = False
 
     # It is important that the plymouth hook comes before any encrypt hook
-    plymouth_bin = os.path.join(root_mount_point, "usr/bin/plymouth")
-    if os.path.exists(plymouth_bin):
+    if detect_plymouth():
         hooks.append("plymouth")
 
     for partition in partitions:
+        if partition["fs"] == "linuxswap" and not partition.get("claimed", None):
+            # Skip foreign swap
+            continue
+
         if partition["fs"] == "linuxswap":
             swap_uuid = partition["uuid"]
             if "luksMapperName" in partition:
@@ -122,12 +149,18 @@ def modify_mkinitcpio_conf(partitions, root_mount_point):
         if partition["fs"] == "btrfs":
             btrfs = "yes"
 
+        if "lvm2" in partition["fs"]:
+            lvm2 = "yes"
+
         if partition["mountPoint"] == "/" and "luksMapperName" in partition:
             encrypt_hook = True
 
         if (partition["mountPoint"] == "/boot"
                 and "luksMapperName" not in partition):
             unencrypted_separate_boot = True
+
+        if partition["mountPoint"] == "/usr":
+            hooks.append("usr")
 
     if encrypt_hook:
         hooks.append("encrypt")
@@ -136,6 +169,9 @@ def modify_mkinitcpio_conf(partitions, root_mount_point):
                os.path.join(root_mount_point, "crypto_keyfile.bin")
                ):
             files.append("/crypto_keyfile.bin")
+
+    if lvm2:
+        hooks.append("lvm2")
 
     if swap_uuid != "":
         if encrypt_hook and openswap_hook:
@@ -163,6 +199,16 @@ def run():
     """
     partitions = libcalamares.globalstorage.value("partitions")
     root_mount_point = libcalamares.globalstorage.value("rootMountPoint")
+
+    if not partitions:
+        libcalamares.utils.warning("partitions is empty, {!s}".format(partitions))
+        return (_("Configuration Error"),
+                _("No partitions are defined for <pre>{!s}</pre> to use." ).format("initcpiocfg"))
+    if not root_mount_point:
+        libcalamares.utils.warning("rootMountPoint is empty, {!s}".format(root_mount_point))
+        return (_("Configuration Error"),
+                _("No root mount point is given for <pre>{!s}</pre> to use." ).format("initcpiocfg"))
+
     modify_mkinitcpio_conf(partitions, root_mount_point)
 
     return None

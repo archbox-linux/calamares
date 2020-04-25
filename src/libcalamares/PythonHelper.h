@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2018, 2020, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -20,44 +21,44 @@
 #define CALAMARES_PYTHONJOBHELPER_H
 
 #include "PythonJob.h"
+#include "utils/BoostPython.h"
 
 #include <QStringList>
 
-#undef slots
-#include <boost/python/dict.hpp>
-#include <boost/python/list.hpp>
-#include <boost/python/object.hpp>
+namespace Calamares
+{
+class GlobalStorage;
+}
 
 namespace CalamaresPython
 {
 
-boost::python::object   variantToPyObject( const QVariant& variant );
-QVariant                variantFromPyObject( const boost::python::object& pyObject );
+boost::python::object variantToPyObject( const QVariant& variant );
+QVariant variantFromPyObject( const boost::python::object& pyObject );
 
-boost::python::list     variantListToPyList( const QVariantList& variantList );
-QVariantList            variantListFromPyList( const boost::python::list& pyList );
+boost::python::list variantListToPyList( const QVariantList& variantList );
+QVariantList variantListFromPyList( const boost::python::list& pyList );
 
-boost::python::dict     variantMapToPyDict( const QVariantMap& variantMap );
-QVariantMap             variantMapFromPyDict( const boost::python::dict& pyDict );
+boost::python::dict variantMapToPyDict( const QVariantMap& variantMap );
+QVariantMap variantMapFromPyDict( const boost::python::dict& pyDict );
 
-boost::python::dict     variantHashToPyDict( const QVariantHash& variantHash );
-QVariantHash            variantHashFromPyDict( const boost::python::dict& pyDict );
+boost::python::dict variantHashToPyDict( const QVariantHash& variantHash );
+QVariantHash variantHashFromPyDict( const boost::python::dict& pyDict );
 
 
 class Helper : public QObject
 {
     Q_OBJECT
 public:
-    explicit Helper( QObject* parent = nullptr );
-    virtual ~Helper();
-
     boost::python::dict createCleanNamespace();
 
     QString handleLastError();
 
+    static Helper* instance();
+
 private:
-    friend Helper* Calamares::PythonJob::helper();
-    static Helper* s_instance;
+    virtual ~Helper();
+    explicit Helper();
 
     boost::python::object m_mainModule;
     boost::python::object m_mainNamespace;
@@ -65,6 +66,28 @@ private:
     QStringList m_pythonPaths;
 };
 
-} // namespace Calamares
+class GlobalStoragePythonWrapper
+{
+public:
+    explicit GlobalStoragePythonWrapper( Calamares::GlobalStorage* gs );
 
-#endif // CALAMARES_PYTHONJOBHELPER_H
+    bool contains( const std::string& key ) const;
+    int count() const;
+    void insert( const std::string& key, const boost::python::api::object& value );
+    boost::python::list keys() const;
+    int remove( const std::string& key );
+    boost::python::api::object value( const std::string& key ) const;
+
+    // This is a helper for scripts that do not go through
+    // the JobQueue (i.e. the module testpython script),
+    // which allocate their own (singleton) GlobalStorage.
+    static Calamares::GlobalStorage* globalStorageInstance() { return s_gs_instance; }
+
+private:
+    Calamares::GlobalStorage* m_gs;
+    static Calamares::GlobalStorage* s_gs_instance;  // See globalStorageInstance()
+};
+
+}  // namespace CalamaresPython
+
+#endif  // CALAMARES_PYTHONJOBHELPER_H

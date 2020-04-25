@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *
@@ -22,20 +22,21 @@
 
 #include <QDir>
 
-namespace Calamares {
+namespace Calamares
+{
 
 
 Module::Type
 ProcessJobModule::type() const
 {
-    return Job;
+    return Module::Type::Job;
 }
 
 
 Module::Interface
 ProcessJobModule::interface() const
 {
-    return ProcessInterface;
+    return Module::Interface::Process;
 }
 
 
@@ -43,27 +44,25 @@ void
 ProcessJobModule::loadSelf()
 {
     if ( m_loaded )
+    {
         return;
+    }
 
-    m_job = job_ptr( new ProcessJob( m_command,
-                                     m_workingPath,
-                                     m_runInChroot,
-                                     m_secondsTimeout ) );
+    m_job = job_ptr( new ProcessJob( m_command, m_workingPath, m_runInChroot, m_secondsTimeout ) );
     m_loaded = true;
 }
 
 
-QList< job_ptr >
+JobList
 ProcessJobModule::jobs() const
 {
-    return QList< job_ptr >() << m_job;
+    return JobList() << m_job;
 }
 
 
 void
 ProcessJobModule::initFrom( const QVariantMap& moduleDescriptor )
 {
-    Module::initFrom( moduleDescriptor );
     QDir directory( location() );
     m_workingPath = directory.absolutePath();
 
@@ -72,16 +71,19 @@ ProcessJobModule::initFrom( const QVariantMap& moduleDescriptor )
         m_command = moduleDescriptor.value( "command" ).toString();
     }
 
-    m_secondsTimeout = 30;
-    if ( moduleDescriptor.contains( "timeout" ) &&
-         !moduleDescriptor.value( "timeout" ).isNull() )
+    m_secondsTimeout = std::chrono::seconds( 30 );
+    if ( moduleDescriptor.contains( "timeout" ) && !moduleDescriptor.value( "timeout" ).isNull() )
     {
-        m_secondsTimeout = moduleDescriptor.value( "timeout" ).toInt();
+        int sec = moduleDescriptor.value( "timeout" ).toInt();
+        if ( sec < 0 )
+        {
+            sec = 0;
+        }
+        m_secondsTimeout = std::chrono::seconds( sec );
     }
 
     m_runInChroot = false;
-    if ( moduleDescriptor.contains( "chroot" )&&
-         !moduleDescriptor.value( "chroot" ).isNull() )
+    if ( moduleDescriptor.contains( "chroot" ) && !moduleDescriptor.value( "chroot" ).isNull() )
     {
         m_runInChroot = moduleDescriptor.value( "chroot" ).toBool();
     }
@@ -90,13 +92,13 @@ ProcessJobModule::initFrom( const QVariantMap& moduleDescriptor )
 
 ProcessJobModule::ProcessJobModule()
     : Module()
-    , m_secondsTimeout( 30 )
+    , m_secondsTimeout( std::chrono::seconds( 30 ) )
     , m_runInChroot( false )
-{}
+{
+}
 
 
-ProcessJobModule::~ProcessJobModule()
-{}
+ProcessJobModule::~ProcessJobModule() {}
 
 
-} // namespace Calamares
+}  // namespace Calamares

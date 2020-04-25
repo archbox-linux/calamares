@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2016, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2020, Adriaan de Groot <groot@kde.org>
  *
  *   Based on the SetPartFlagsJob class from KDE Partition Manager,
  *   Copyright 2008, 2010, Volker Lanz <vl@fidra.de>
@@ -21,37 +22,43 @@
 
 #include "SetPartitionFlagsJob.h"
 
+#include "partition/FileSystem.h"
 #include "utils/Logger.h"
+#include "utils/Units.h"
 
-#include <kpmcore/core/partition.h>
-#include <kpmcore/backend/corebackend.h>
-#include <kpmcore/backend/corebackenddevice.h>
-#include <kpmcore/backend/corebackendmanager.h>
-#include <kpmcore/backend/corebackendpartition.h>
-#include <kpmcore/backend/corebackendpartitiontable.h>
 #include <kpmcore/core/device.h>
+#include <kpmcore/core/partition.h>
+#include <kpmcore/fs/filesystem.h>
+#include <kpmcore/ops/setpartflagsoperation.h>
 #include <kpmcore/util/report.h>
 
-SetPartFlagsJob::SetPartFlagsJob( Device* device,
-                                            Partition* partition,
-                                            PartitionTable::Flags flags )
+using CalamaresUtils::BytesToMiB;
+using CalamaresUtils::Partition::untranslatedFS;
+using CalamaresUtils::Partition::userVisibleFS;
+
+SetPartFlagsJob::SetPartFlagsJob( Device* device, Partition* partition, PartitionTable::Flags flags )
     : PartitionJob( partition )
     , m_device( device )
     , m_flags( flags )
-{}
+{
+}
 
 
 QString
 SetPartFlagsJob::prettyName() const
 {
     if ( !partition()->partitionPath().isEmpty() )
+    {
         return tr( "Set flags on partition %1." ).arg( partition()->partitionPath() );
+    }
 
-    if ( !partition()->fileSystem().name().isEmpty() )
-        return tr( "Set flags on %1MB %2 partition." )
-                .arg( partition()->capacity() /1024 /1024)
-                .arg( partition()->fileSystem().name() );
-
+    QString fsNameForUser = userVisibleFS( partition()->fileSystem() );
+    if ( !fsNameForUser.isEmpty() )
+    {
+        return tr( "Set flags on %1MiB %2 partition." )
+            .arg( BytesToMiB( partition()->capacity() ) )
+            .arg( fsNameForUser );
+    }
     return tr( "Set flags on new partition." );
 }
 
@@ -63,32 +70,39 @@ SetPartFlagsJob::prettyDescription() const
     if ( flagsList.count() == 0 )
     {
         if ( !partition()->partitionPath().isEmpty() )
-            return tr( "Clear flags on partition <strong>%1</strong>." )
-                    .arg( partition()->partitionPath() );
+        {
+            return tr( "Clear flags on partition <strong>%1</strong>." ).arg( partition()->partitionPath() );
+        }
 
-        if ( !partition()->fileSystem().name().isEmpty() )
-            return tr( "Clear flags on %1MB <strong>%2</strong> partition." )
-                    .arg( partition()->capacity() /1024 /1024)
-                    .arg( partition()->fileSystem().name() );
-
+        QString fsNameForUser = userVisibleFS( partition()->fileSystem() );
+        if ( !fsNameForUser.isEmpty() )
+        {
+            return tr( "Clear flags on %1MiB <strong>%2</strong> partition." )
+                .arg( BytesToMiB( partition()->capacity() ) )
+                .arg( fsNameForUser );
+        }
         return tr( "Clear flags on new partition." );
     }
 
     if ( !partition()->partitionPath().isEmpty() )
+    {
         return tr( "Flag partition <strong>%1</strong> as "
                    "<strong>%2</strong>." )
-                .arg( partition()->partitionPath() )
-                .arg( flagsList.join( ", " ) );
+            .arg( partition()->partitionPath() )
+            .arg( flagsList.join( ", " ) );
+    }
 
-    if ( !partition()->fileSystem().name().isEmpty() )
-        return tr( "Flag %1MB <strong>%2</strong> partition as "
+    QString fsNameForUser = userVisibleFS( partition()->fileSystem() );
+    if ( !fsNameForUser.isEmpty() )
+    {
+        return tr( "Flag %1MiB <strong>%2</strong> partition as "
                    "<strong>%3</strong>." )
-                .arg( partition()->capacity() /1024 /1024)
-                .arg( partition()->fileSystem().name() )
-                .arg( flagsList.join( ", " ) );
+            .arg( BytesToMiB( partition()->capacity() ) )
+            .arg( fsNameForUser )
+            .arg( flagsList.join( ", " ) );
+    }
 
-    return tr( "Flag new partition as <strong>%1</strong>." )
-                .arg( flagsList.join( ", " ) );
+    return tr( "Flag new partition as <strong>%1</strong>." ).arg( flagsList.join( ", " ) );
 }
 
 
@@ -99,108 +113,60 @@ SetPartFlagsJob::prettyStatusMessage() const
     if ( flagsList.count() == 0 )
     {
         if ( !partition()->partitionPath().isEmpty() )
-            return tr( "Clearing flags on partition <strong>%1</strong>." )
-                    .arg( partition()->partitionPath() );
+        {
+            return tr( "Clearing flags on partition <strong>%1</strong>." ).arg( partition()->partitionPath() );
+        }
 
-        if ( !partition()->fileSystem().name().isEmpty() )
-            return tr( "Clearing flags on %1MB <strong>%2</strong> partition." )
-                    .arg( partition()->capacity() /1024 /1024)
-                    .arg( partition()->fileSystem().name() );
+        QString fsNameForUser = userVisibleFS( partition()->fileSystem() );
+        if ( !fsNameForUser.isEmpty() )
+        {
+            return tr( "Clearing flags on %1MiB <strong>%2</strong> partition." )
+                .arg( BytesToMiB( partition()->capacity() ) )
+                .arg( fsNameForUser );
+        }
 
         return tr( "Clearing flags on new partition." );
     }
 
     if ( !partition()->partitionPath().isEmpty() )
+    {
         return tr( "Setting flags <strong>%2</strong> on partition "
                    "<strong>%1</strong>." )
-                .arg( partition()->partitionPath() )
-                .arg( flagsList.join( ", " ) );
+            .arg( partition()->partitionPath() )
+            .arg( flagsList.join( ", " ) );
+    }
 
-    if ( !partition()->fileSystem().name().isEmpty() )
+    QString fsNameForUser = userVisibleFS( partition()->fileSystem() );
+    if ( !fsNameForUser.isEmpty() )
+    {
         return tr( "Setting flags <strong>%3</strong> on "
-                   "%1MB <strong>%2</strong> partition." )
-                .arg( partition()->capacity() /1024 /1024)
-                .arg( partition()->fileSystem().name() )
-                .arg( flagsList.join( ", " ) );
+                   "%1MiB <strong>%2</strong> partition." )
+            .arg( BytesToMiB( partition()->capacity() ) )
+            .arg( fsNameForUser )
+            .arg( flagsList.join( ", " ) );
+    }
 
-    return tr( "Setting flags <strong>%1</strong> on new partition." )
-                .arg( flagsList.join( ", " ) );
+    return tr( "Setting flags <strong>%1</strong> on new partition." ).arg( flagsList.join( ", " ) );
 }
 
 
 Calamares::JobResult
 SetPartFlagsJob::exec()
 {
-    PartitionTable::Flags oldFlags = partition()->availableFlags();
-    if ( oldFlags == m_flags )
+    cDebug() << "Setting flags on" << m_device->deviceNode() << "partition" << partition()->deviceNode() << "to"
+             << m_flags;
+
+    Report report( nullptr );
+    SetPartFlagsOperation op( *m_device, *partition(), m_flags );
+    op.setStatus( Operation::StatusRunning );
+    connect( &op, &Operation::progress, this, &SetPartFlagsJob::iprogress );
+
+    QString errorMessage
+        = tr( "The installer failed to set flags on partition %1." ).arg( m_partition->partitionPath() );
+    if ( op.execute( report ) )
+    {
         return Calamares::JobResult::ok();
-
-    CoreBackend* backend = CoreBackendManager::self()->backend();
-
-    QString errorMessage = tr( "The installer failed to set flags on partition %1." )
-                           .arg( m_partition->partitionPath() );
-
-    QScopedPointer< CoreBackendDevice > backendDevice( backend->openDevice( m_device->deviceNode() ) );
-    if ( !backendDevice.data() )
-    {
-        return Calamares::JobResult::error(
-                   errorMessage,
-                   tr( "Could not open device '%1'." ).arg( m_device->deviceNode() )
-               );
     }
 
-    QScopedPointer< CoreBackendPartitionTable > backendPartitionTable( backendDevice->openPartitionTable() );
-    if ( !backendPartitionTable.data() )
-    {
-        return Calamares::JobResult::error(
-                   errorMessage,
-                   tr( "Could not open partition table on device '%1'." ).arg( m_device->deviceNode() )
-               );
-    }
-
-    QScopedPointer< CoreBackendPartition > backendPartition(
-            ( partition()->roles().has( PartitionRole::Extended ) )
-            ? backendPartitionTable->getExtendedPartition()
-            : backendPartitionTable->getPartitionBySector( partition()->firstSector() )
-    );
-    if ( !backendPartition.data() ) {
-        return Calamares::JobResult::error(
-                   errorMessage,
-                   tr( "Could not find partition '%1'." ).arg( partition()->partitionPath() )
-               );
-    }
-
-    quint32 count = 0;
-
-    foreach( const PartitionTable::Flag& f, PartitionTable::flagList() )
-    {
-        emit progress(++count);
-
-        const bool state = ( m_flags & f ) ? true : false;
-
-        Report report( nullptr );
-        if ( !backendPartition->setFlag( report, f, state ) )
-        {
-            cDebug() << QStringLiteral( "WARNING: Could not set flag %2 on "
-                                        "partition '%1'." )
-                           .arg( partition()->partitionPath() )
-                           .arg( PartitionTable::flagName( f ) );
-        }
-    }
-
-    // HACK: Partition (in KPMcore) declares SetPartFlagsJob as friend, but this actually
-    //       refers to an unrelated class SetPartFlagsJob which is in KPMcore but is not
-    //       exported.
-    //       Obviously here we are relying on having a class in Calamares with the same
-    //       name as a private one in KPMcore, which is awful, but it's the least evil
-    //       way to call Partition::setFlags (KPMcore's SetPartFlagsJob needs its friend
-    //       status for the very same reason).
-    m_partition->setFlags( m_flags );
-
-    backendPartitionTable->commit();
-
-    return Calamares::JobResult::ok();
+    return Calamares::JobResult::error( errorMessage, report.toText() );
 }
-
-
-#include "SetPartitionFlagsJob.moc"

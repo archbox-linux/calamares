@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017, 2019-2020, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,50 +19,43 @@
 
 #include "ProgressTreeDelegate.h"
 
-#include "../CalamaresApplication.h"
-#include "../CalamaresWindow.h"
-#include "ViewStepItem.h"
-#include "ProgressTreeModel.h"
-#include "ViewManager.h"
 #include "Branding.h"
+#include "CalamaresApplication.h"
+#include "CalamaresWindow.h"
+#include "ViewManager.h"
 #include "utils/CalamaresUtilsGui.h"
 
-#include <QAbstractItemView>
 #include <QPainter>
 
-#define ITEM_MARGIN 12
-#define VS_FONTSIZE CalamaresUtils::defaultFontSize() + 4
-
-ProgressTreeDelegate::ProgressTreeDelegate( QAbstractItemView* parent )
-    : QStyledItemDelegate( parent )
-    , m_parent( parent )
+static constexpr int const item_margin = 8;
+static inline int
+item_fontsize()
 {
+    return CalamaresUtils::defaultFontSize() + 4;
 }
 
-
 QSize
-ProgressTreeDelegate::sizeHint( const QStyleOptionViewItem& option,
-                                const QModelIndex& index ) const
+ProgressTreeDelegate::sizeHint( const QStyleOptionViewItem& option, const QModelIndex& index ) const
 {
     if ( !index.isValid() )
+    {
         return option.rect.size();
+    }
 
     QFont font = qApp->font();
 
-    font.setPointSize( VS_FONTSIZE );
+    font.setPointSize( item_fontsize() );
     QFontMetrics fm( font );
     int height = fm.height();
 
-    height += 2*ITEM_MARGIN; //margin
+    height += 2 * item_margin;
 
     return QSize( option.rect.width(), height );
 }
 
 
 void
-ProgressTreeDelegate::paint( QPainter* painter,
-                             const QStyleOptionViewItem& option,
-                             const QModelIndex& index) const
+ProgressTreeDelegate::paint( QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index ) const
 {
     QStyleOptionViewItem opt = option;
 
@@ -71,10 +64,9 @@ ProgressTreeDelegate::paint( QPainter* painter,
     initStyleOption( &opt, index );
     opt.text.clear();
 
-    painter->setBrush( QColor( Calamares::Branding::instance()->
-        styleString( Calamares::Branding::SidebarBackground ) ) );
-    painter->setPen( QColor( Calamares::Branding::instance()->
-        styleString( Calamares::Branding::SidebarText ) ) );
+    painter->setBrush(
+        QColor( Calamares::Branding::instance()->styleString( Calamares::Branding::SidebarBackground ) ) );
+    painter->setPen( QColor( Calamares::Branding::instance()->styleString( Calamares::Branding::SidebarText ) ) );
 
     paintViewStep( painter, opt, index );
 
@@ -87,30 +79,55 @@ ProgressTreeDelegate::paintViewStep( QPainter* painter,
                                      const QStyleOptionViewItem& option,
                                      const QModelIndex& index ) const
 {
-    QRect textRect = option.rect.adjusted( ITEM_MARGIN,
-                                           ITEM_MARGIN,
-                                           ITEM_MARGIN,
-                                           ITEM_MARGIN );
+    QRect textRect = option.rect.adjusted( item_margin, item_margin, -item_margin, -item_margin );
     QFont font = qApp->font();
-    font.setPointSize( VS_FONTSIZE );
+    font.setPointSize( item_fontsize() );
     font.setBold( false );
     painter->setFont( font );
 
-    bool isCurrent = false;
-    isCurrent = index.data( ProgressTreeModel::ProgressTreeItemCurrentRole ).toBool();
-
-    if ( isCurrent )
+    if ( index.row() == index.data( Calamares::ViewManager::ProgressTreeItemCurrentIndex ).toInt() )
     {
-        painter->setPen( Calamares::Branding::instance()->
-                         styleString( Calamares::Branding::SidebarTextSelect ) );
-        QString textHighlight = Calamares::Branding::instance()->
-                           styleString( Calamares::Branding::SidebarTextHighlight );
+        painter->setPen( Calamares::Branding::instance()->styleString( Calamares::Branding::SidebarTextSelect ) );
+        QString textHighlight
+            = Calamares::Branding::instance()->styleString( Calamares::Branding::SidebarTextHighlight );
         if ( textHighlight.isEmpty() )
-            painter->setBrush( APP->mainWindow()->palette().background() );
+        {
+            painter->setBrush( CalamaresApplication::instance()->mainWindow()->palette().window() );
+        }
         else
+        {
             painter->setBrush( QColor( textHighlight ) );
+        }
     }
 
-    painter->fillRect( option.rect, painter->brush().color() );
-    painter->drawText( textRect, index.data().toString() );
+
+    // Draw the text at least once. If it doesn't fit, then shrink the font
+    // being used by 1 pt on each iteration, up to a maximum of maximumShrink
+    // times. On each loop, we'll have to blank out the rectangle again, so this
+    // is an expensive (in terms of drawing operations) thing to do.
+    //
+    // (The loop uses <= because the counter is incremented at the start).
+    static constexpr int const maximumShrink = 4;
+    int shrinkSteps = 0;
+    do
+    {
+        painter->fillRect( option.rect, painter->brush().color() );
+        shrinkSteps++;
+
+        QRectF boundingBox;
+        painter->drawText(
+            textRect, Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextSingleLine, index.data().toString(), &boundingBox );
+
+        // The extra check here is to avoid the changing-font-size if we're not going to use
+        // it in the next iteration of the loop anyway.
+        if ( ( shrinkSteps <= maximumShrink ) && ( boundingBox.width() > textRect.width() ) )
+        {
+            font.setPointSize( item_fontsize() - shrinkSteps );
+            painter->setFont( font );
+        }
+        else
+        {
+            break;  // It fits
+        }
+    } while ( shrinkSteps <= maximumShrink );
 }

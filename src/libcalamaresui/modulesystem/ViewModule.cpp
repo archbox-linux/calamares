@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,28 +19,29 @@
 
 #include "ViewModule.h"
 
-#include "utils/PluginFactory.h"
-#include "utils/Logger.h"
-#include "viewpages/ViewStep.h"
 #include "ViewManager.h"
+#include "utils/Logger.h"
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
 
 #include <QDir>
 #include <QPluginLoader>
 
-namespace Calamares {
+namespace Calamares
+{
 
 
 Module::Type
 ViewModule::type() const
 {
-    return View;
+    return Module::Type::View;
 }
 
 
 Module::Interface
 ViewModule::interface() const
 {
-    return QtPluginInterface;
+    return Module::Interface::QtPlugin;
 }
 
 
@@ -49,34 +50,38 @@ ViewModule::loadSelf()
 {
     if ( m_loader )
     {
-        PluginFactory* pf = qobject_cast< PluginFactory* >( m_loader->instance() );
+        CalamaresPluginFactory* pf = qobject_cast< CalamaresPluginFactory* >( m_loader->instance() );
         if ( !pf )
         {
-            cDebug() << Q_FUNC_INFO << "No factory:" << m_loader->errorString();
+            cWarning() << Q_FUNC_INFO << "No factory:" << m_loader->errorString();
             return;
         }
 
         m_viewStep = pf->create< Calamares::ViewStep >();
         if ( !m_viewStep )
         {
-            cDebug() << Q_FUNC_INFO << "create() failed" << m_loader->errorString();
+            cWarning() << Q_FUNC_INFO << "create() failed" << m_loader->errorString();
             return;
         }
-//        cDebug() << "ViewModule loading self for instance" << instanceKey()
-//                 << "\nViewModule at address" << this
-//                 << "\nCalamares::PluginFactory at address" << pf
-//                 << "\nViewStep at address" << m_viewStep;
+    }
 
+    // If any method created the view step, use it now.
+    if ( m_viewStep )
+    {
         m_viewStep->setModuleInstanceKey( instanceKey() );
         m_viewStep->setConfigurationMap( m_configurationMap );
         ViewManager::instance()->addViewStep( m_viewStep );
         m_loaded = true;
         cDebug() << "ViewModule" << instanceKey() << "loading complete.";
     }
+    else
+    {
+        cWarning() << Q_FUNC_INFO << "No view step was created";
+    }
 }
 
 
-QList< job_ptr >
+JobList
 ViewModule::jobs() const
 {
     return m_viewStep->jobs();
@@ -86,7 +91,6 @@ ViewModule::jobs() const
 void
 ViewModule::initFrom( const QVariantMap& moduleDescriptor )
 {
-    Module::initFrom( moduleDescriptor );
     QDir directory( location() );
     QString load;
     if ( !moduleDescriptor.value( "load" ).toString().isEmpty() )
@@ -97,7 +101,7 @@ ViewModule::initFrom( const QVariantMap& moduleDescriptor )
     // If a load path is not specified, we look for a plugin to load in the directory.
     if ( load.isEmpty() || !QLibrary::isLibrary( load ) )
     {
-        const QStringList ls = directory.entryList( QStringList{ "*.so" } );
+        const QStringList ls = directory.entryList( QStringList { "*.so" } );
         if ( !ls.isEmpty() )
         {
             for ( QString entry : ls )
@@ -126,4 +130,10 @@ ViewModule::~ViewModule()
     delete m_loader;
 }
 
-} // namespace Calamares
+RequirementsList
+ViewModule::checkRequirements()
+{
+    return m_viewStep->checkRequirements();
+}
+
+}  // namespace Calamares

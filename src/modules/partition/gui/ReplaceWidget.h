@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
+ *   Copyright 2018, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -20,6 +21,8 @@
 #ifndef REPLACEWIDGET_H
 #define REPLACEWIDGET_H
 
+#include "utils/CalamaresUtilsGui.h"
+
 #include <QWidget>
 #include <QScopedPointer>
 
@@ -27,11 +30,6 @@ class Ui_ReplaceWidget;
 class QComboBox;
 class PartitionCoreModule;
 class Partition;
-
-namespace CalamaresUtils
-{
-enum ImageType : int;
-}
 
 class ReplaceWidget : public QWidget
 {

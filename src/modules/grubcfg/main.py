@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# === This file is part of Calamares - <http://github.com/calamares> ===
+# === This file is part of Calamares - <https://github.com/calamares> ===
 #
 #   Copyright 2014-2015, Philip Müller <philm@manjaro.org>
 #   Copyright 2015-2017, Teo Mrnjavac <teo@kde.org>
 #   Copyright 2017, Alf Gaida <agaida@siduction.org>
-#   Copyright 2017, Adriaan de Groot <groot@kde.org>
-#   Copyright 2017, Gabriel Craciunescu <crazy@frugalware.org>
+#   Copyright 2017, 2019, Adriaan de Groot <groot@kde.org>
+#   Copyright 2017-2018, Gabriel Craciunescu <crazy@frugalware.org>
 #
 #   Calamares is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -26,6 +26,16 @@ import libcalamares
 import os
 import re
 
+import gettext
+_ = gettext.translation("calamares-python",
+                        localedir=libcalamares.utils.gettext_path(),
+                        languages=libcalamares.utils.gettext_languages(),
+                        fallback=True).gettext
+
+
+def pretty_name():
+    return _("Configure GRUB.")
+
 
 def modify_grub_default(partitions, root_mount_point, distributor):
     """
@@ -35,7 +45,13 @@ def modify_grub_default(partitions, root_mount_point, distributor):
 
     :param partitions:
     :param root_mount_point:
-    :param distributor:
+    :param distributor: name of the distributor to fill in for
+        GRUB_DISTRIBUTOR. Must be a string. If the job setting
+        *keepDistributor* is set, then this is only used if no
+        GRUB_DISTRIBUTOR is found at all (otherwise, when *keepDistributor*
+        is set, the GRUB_DISTRIBUTOR lines are left unchanged).
+        If *keepDistributor* is unset or false, then GRUB_DISTRIBUTOR
+        is always updated to set this value.
     :return:
     """
     default_dir = os.path.join(root_mount_point, "etc/default")
@@ -44,21 +60,35 @@ def modify_grub_default(partitions, root_mount_point, distributor):
     dracut_bin = libcalamares.utils.target_env_call(
         ["sh", "-c", "which dracut"]
         )
-    have_dracut = dracut_bin == 0  # Shell exit value 0 means success
+    plymouth_bin = libcalamares.utils.target_env_call(
+        ["sh", "-c", "which plymouth"]
+        )
+
+    # Shell exit value 0 means success
+    have_plymouth = plymouth_bin == 0
+    have_dracut = dracut_bin == 0
 
     use_splash = ""
     swap_uuid = ""
     swap_outer_uuid = ""
     swap_outer_mappername = None
+    no_save_default = False
 
-    if libcalamares.globalstorage.contains("hasPlymouth"):
-        if libcalamares.globalstorage.value("hasPlymouth"):
-            use_splash = "splash"
+    for partition in partitions:
+        if partition["mountPoint"] in ("/", "/boot") and partition["fs"] in ("btrfs", "f2fs"):
+            no_save_default = True
+            break
+
+    if have_plymouth:
+        use_splash = "splash"
 
     cryptdevice_params = []
 
     if have_dracut:
         for partition in partitions:
+            if partition["fs"] == "linuxswap" and not partition.get("claimed", None):
+                # Skip foreign swap
+                continue
             has_luks = "luksMapperName" in partition
             if partition["fs"] == "linuxswap" and not has_luks:
                 swap_uuid = partition["uuid"]
@@ -73,9 +103,15 @@ def modify_grub_default(partitions, root_mount_point, distributor):
                     ]
     else:
         for partition in partitions:
+            if partition["fs"] == "linuxswap" and not partition.get("claimed", None):
+                # Skip foreign swap
+                continue
             has_luks = "luksMapperName" in partition
             if partition["fs"] == "linuxswap" and not has_luks:
                 swap_uuid = partition["uuid"]
+
+            if (partition["fs"] == "linuxswap" and has_luks):
+                swap_outer_mappername = partition["luksMapperName"]
 
             if (partition["mountPoint"] == "/" and has_luks):
                 cryptdevice_params = [
@@ -83,9 +119,6 @@ def modify_grub_default(partitions, root_mount_point, distributor):
                         partition["luksUuid"], partition["luksMapperName"]
                         ),
                     "root=/dev/mapper/{!s}".format(
-                        partition["luksMapperName"]
-                        ),
-                    "resume=/dev/mapper/{!s}".format(
                         partition["luksMapperName"]
                         )
                 ]
@@ -103,7 +136,7 @@ def modify_grub_default(partitions, root_mount_point, distributor):
 
     if have_dracut and swap_outer_uuid:
         kernel_params.append("rd.luks.uuid={!s}".format(swap_outer_uuid))
-    if have_dracut and swap_outer_mappername:
+    if swap_outer_mappername:
         kernel_params.append("resume=/dev/mapper/{!s}".format(
             swap_outer_mappername))
 
@@ -157,8 +190,16 @@ def modify_grub_default(partitions, root_mount_point, distributor):
                 have_kernel_cmd = True
             elif (lines[i].startswith("#GRUB_DISTRIBUTOR")
                   or lines[i].startswith("GRUB_DISTRIBUTOR")):
-                lines[i] = distributor_line
-                have_distributor_line = True
+                if libcalamares.job.configuration.get("keepDistributor", False):
+                    lines[i] = distributor_line
+                    have_distributor_line = True
+                else:
+                    # We're not updating because of *keepDistributor*, but if
+                    # this was a comment line, then it's still not been set.
+                    have_distributor_line = have_distributor_line or not lines[i].startswith("#")
+            # If btrfs or f2fs is used, don't save default
+            if no_save_default and lines[i].startswith("GRUB_SAVEDEFAULT="):
+                lines[i] = "#GRUB_SAVEDEFAULT=\"true\""
     else:
         lines = []
 

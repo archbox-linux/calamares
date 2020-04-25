@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, 2020, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,10 +19,12 @@
 
 #include "CalamaresUtilsSystem.h"
 
-#include "utils/Logger.h"
-#include "JobQueue.h"
 #include "GlobalStorage.h"
+#include "JobQueue.h"
+#include "Settings.h"
+#include "utils/Logger.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QProcess>
 #include <QRegularExpression>
@@ -32,9 +34,53 @@
 #endif
 
 #ifdef Q_OS_FREEBSD
+// clang-format off
+// these includes need to stay in-order (that's a FreeBSD thing)
 #include <sys/types.h>
 #include <sys/sysctl.h>
+// clang-format on
 #endif
+
+/** @brief When logging commands, don't log everything.
+ *
+ * The command-line arguments to some commands may contain the
+ * encrypted password set by the user. Don't log that password,
+ * since the log may get posted to bug reports, or stored in
+ * the target system.
+ */
+struct RedactedList
+{
+    RedactedList( const QStringList& l )
+        : list( l )
+    {
+    }
+
+    const QStringList& list;
+};
+
+QDebug&
+operator<<( QDebug& s, const RedactedList& l )
+{
+    // Special case logging: don't log the (encrypted) password.
+    if ( l.list.contains( "usermod" ) )
+    {
+        for ( const auto& item : l.list )
+            if ( item.startsWith( "$6$" ) )
+            {
+                s << "<password>";
+            }
+            else
+            {
+                s << item;
+            }
+    }
+    else
+    {
+        s << l.list;
+    }
+
+    return s;
+}
 
 namespace CalamaresUtils
 {
@@ -48,121 +94,72 @@ System::System( bool doChroot, QObject* parent )
 {
     Q_ASSERT( !s_instance );
     s_instance = this;
-    if ( !doChroot )
+    if ( !doChroot && Calamares::JobQueue::instance() && Calamares::JobQueue::instance()->globalStorage() )
+    {
         Calamares::JobQueue::instance()->globalStorage()->insert( "rootMountPoint", "/" );
+    }
 }
 
 
-System::~System()
-{}
+System::~System() {}
 
 
-System*System::instance()
+System*
+System::instance()
 {
+    if ( !s_instance )
+    {
+        cError() << "No Calamares system-object has been created.";
+        cError() << Logger::SubEntry << "using a bogus instance instead.";
+        return new System( true, nullptr );
+    }
     return s_instance;
 }
 
 
-int
-System::mount( const QString& devicePath,
-       const QString& mountPoint,
-       const QString& filesystemName,
-       const QString& options )
+ProcessResult
+System::runCommand( System::RunLocation location,
+                    const QStringList& args,
+                    const QString& workingPath,
+                    const QString& stdInput,
+                    std::chrono::seconds timeoutSec )
 {
-    if ( devicePath.isEmpty() || mountPoint.isEmpty() )
-        return -3;
-
-    QDir mountPointDir( mountPoint );
-    if ( !mountPointDir.exists() )
+    if ( args.isEmpty() )
     {
-        bool ok = mountPointDir.mkpath( mountPoint );
-        if ( !ok )
-            return -3;
+        cWarning() << "Cannot run an empty program list";
+        return ProcessResult::Code::FailedToStart;
     }
 
-    QString program( "mount" );
-    QStringList args = { devicePath, mountPoint };
+    Calamares::GlobalStorage* gs
+        = Calamares::JobQueue::instance() ? Calamares::JobQueue::instance()->globalStorage() : nullptr;
 
-    if ( !filesystemName.isEmpty() )
-        args << "-t" << filesystemName;
-
-    if ( !options.isEmpty() )
-        args << "-o" << options;
-
-    return QProcess::execute( program, args );
-}
-
-int
-System::targetEnvCall( const QStringList& args,
-            const QString& workingPath,
-            const QString& stdInput,
-            int timeoutSec )
-{
-    QString discard;
-    return targetEnvOutput( args,
-                         discard,
-                         workingPath,
-                         stdInput,
-                         timeoutSec );
-}
-
-
-int
-System::targetEnvCall( const QString& command,
-            const QString& workingPath,
-            const QString& stdInput,
-            int timeoutSec )
-{
-    return targetEnvCall( QStringList{ command },
-                       workingPath,
-                       stdInput,
-                       timeoutSec );
-}
-
-
-int
-System::targetEnvOutput( const QStringList& args,
-              QString& output,
-              const QString& workingPath,
-              const QString& stdInput,
-              int timeoutSec )
-{
-    output.clear();
-
-    if ( !Calamares::JobQueue::instance() )
-        return -3;
-
-    Calamares::GlobalStorage* gs = Calamares::JobQueue::instance()->globalStorage();
-    if ( !gs ||
-         ( m_doChroot && !gs->contains( "rootMountPoint" ) ) )
+    if ( ( location == System::RunLocation::RunInTarget ) && ( !gs || !gs->contains( "rootMountPoint" ) ) )
     {
-        cLog() << "No rootMountPoint in global storage";
-        return -3;
+        cWarning() << "No rootMountPoint in global storage";
+        return ProcessResult::Code::NoWorkingDirectory;
     }
 
-    QProcess process;
     QString program;
-    QStringList arguments;
+    QStringList arguments( args );
 
-    if ( m_doChroot )
+    if ( location == System::RunLocation::RunInTarget )
     {
         QString destDir = gs->value( "rootMountPoint" ).toString();
         if ( !QDir( destDir ).exists() )
         {
-            cLog() << "rootMountPoint points to a dir which does not exist";
-            return -3;
+            cWarning() << "rootMountPoint points to a dir which does not exist";
+            return ProcessResult::Code::NoWorkingDirectory;
         }
 
         program = "chroot";
-        arguments = QStringList( { destDir } );
-        arguments << args;
+        arguments.prepend( destDir );
     }
     else
     {
         program = "env";
-        arguments << args;
     }
 
+    QProcess process;
     process.setProgram( program );
     process.setArguments( arguments );
     process.setProcessChannelMode( QProcess::MergedChannels );
@@ -170,91 +167,288 @@ System::targetEnvOutput( const QStringList& args,
     if ( !workingPath.isEmpty() )
     {
         if ( QDir( workingPath ).exists() )
+        {
             process.setWorkingDirectory( QDir( workingPath ).absolutePath() );
+        }
         else
-            cLog() << "Invalid working directory:" << workingPath;
-            return -3;
+        {
+            cWarning() << "Invalid working directory:" << workingPath;
+            return ProcessResult::Code::NoWorkingDirectory;
+        }
     }
 
-    cLog() << "Running" << program << arguments;
+    cDebug() << "Running" << program << RedactedList( arguments );
     process.start();
     if ( !process.waitForStarted() )
     {
-        cLog() << "Process failed to start" << process.error();
-        return -2;
+        cWarning() << "Process" << args.first() << "failed to start" << process.error();
+        return ProcessResult::Code::FailedToStart;
     }
 
     if ( !stdInput.isEmpty() )
     {
         process.write( stdInput.toLocal8Bit() );
-        process.closeWriteChannel();
     }
+    process.closeWriteChannel();
 
-    if ( !process.waitForFinished( timeoutSec ? ( timeoutSec * 1000 ) : -1 ) )
+    if ( !process.waitForFinished( timeoutSec > std::chrono::seconds::zero()
+                                       ? ( static_cast< int >( std::chrono::milliseconds( timeoutSec ).count() ) )
+                                       : -1 ) )
     {
-        cLog() << "Timed out. output so far:";
-        cLog() << process.readAllStandardOutput();
-        return -4;
+        ( cWarning() << "Process" << args.first() << "timed out after" << timeoutSec.count() << "s. Output so far:\n" ).noquote().nospace() << process.readAllStandardOutput();
+        return ProcessResult::Code::TimedOut;
     }
 
-    output.append( QString::fromLocal8Bit( process.readAllStandardOutput() ).trimmed() );
+    QString output = QString::fromLocal8Bit( process.readAllStandardOutput() ).trimmed();
 
     if ( process.exitStatus() == QProcess::CrashExit )
     {
-        cLog() << "Process crashed";
-        return -1;
+        ( cWarning() << "Process" << args.first() << "crashed. Output so far:\n" ).noquote().nospace() << output;
+        return ProcessResult::Code::Crashed;
     }
 
     auto r = process.exitCode();
-    cLog() << "Finished. Exit code:" << r;
-    if ( r != 0 )
+    cDebug() << "Finished. Exit code:" << r;
+    bool showDebug = ( !Calamares::Settings::instance() ) || ( Calamares::Settings::instance()->debugMode() );
+    if ( ( r != 0 ) || showDebug )
     {
-        cLog() << "Target cmd" << args;
-        cLog() << "Target out" << output;
+        ( cDebug() << "Target cmd:" << RedactedList( args ) << "output:\n" ).noquote().nospace() << output;
     }
-    return r;
+    return ProcessResult( r, output );
 }
 
-
-int
-System::targetEnvOutput( const QString& command,
-              QString& output,
-              const QString& workingPath,
-              const QString& stdInput,
-              int timeoutSec )
+/// @brief Cheap check if a path is absolute.
+static inline bool
+isAbsolutePath( const QString& path )
 {
-    return targetEnvOutput( QStringList{ command },
-                         output,
-                         workingPath,
-                         stdInput,
-                         timeoutSec );
+    return path.startsWith( '/' );
+}
+
+QString
+System::targetPath( const QString& path ) const
+{
+    if ( doChroot() )
+    {
+        Calamares::GlobalStorage* gs
+            = Calamares::JobQueue::instance() ? Calamares::JobQueue::instance()->globalStorage() : nullptr;
+
+        if ( !gs || !gs->contains( "rootMountPoint" ) )
+        {
+            cWarning() << "No rootMountPoint in global storage, cannot name target file" << path;
+            return QString();
+        }
+
+        QString root = gs->value( "rootMountPoint" ).toString();
+        return isAbsolutePath( path ) ? ( root + path ) : ( root + '/' + path );
+    }
+    else
+    {
+        return isAbsolutePath( path ) ? path : ( QStringLiteral( "/" ) + path );
+    }
+}
+
+CreationResult
+System::createTargetFile( const QString& path, const QByteArray& contents, WriteMode mode ) const
+{
+    QString completePath = targetPath( path );
+    if ( completePath.isEmpty() )
+    {
+        return CreationResult( CreationResult::Code::Invalid );
+    }
+
+    QFile f( completePath );
+    if ( ( mode == WriteMode::KeepExisting ) && f.exists() )
+    {
+        return CreationResult( CreationResult::Code::AlreadyExists );
+    }
+
+    QIODevice::OpenMode m =
+#if QT_VERSION >= QT_VERSION_CHECK( 5, 11, 0 )
+        // New flag from Qt 5.11, implies WriteOnly
+        ( mode == WriteMode::KeepExisting ? QIODevice::NewOnly : QIODevice::WriteOnly ) |
+#endif
+        QIODevice::WriteOnly | QIODevice::Truncate;
+
+    if ( !f.open( m ) )
+    {
+        return CreationResult( CreationResult::Code::Failed );
+    }
+
+    if ( f.write( contents ) != contents.size() )
+    {
+        f.close();
+        f.remove();
+        return CreationResult( CreationResult::Code::Failed );
+    }
+
+    f.close();
+    return CreationResult( QFileInfo( f ).canonicalFilePath() );
+}
+
+void
+System::removeTargetFile( const QString& path ) const
+{
+    if ( !isAbsolutePath( path ) )
+    {
+        cWarning() << "Will not remove non-absolute path" << path;
+        return;
+    }
+    QString target = targetPath( path );
+    if ( !target.isEmpty() )
+    {
+        QFile::remove( target );
+    }
+    // If it was empty, a warning was already printed
+}
+
+bool
+System::createTargetDirs( const QString& path ) const
+{
+    if ( !isAbsolutePath( path ) )
+    {
+        cWarning() << "Will not create basedirs for non-absolute path" << path;
+        return false;
+    }
+
+    QString target = targetPath( path );
+    if ( target.isEmpty() )
+    {
+        // If it was empty, a warning was already printed
+        return false;
+    }
+
+    QString root = Calamares::JobQueue::instance()->globalStorage()->value( "rootMountPoint" ).toString();
+    if ( root.isEmpty() )
+    {
+        return false;
+    }
+
+    QDir d( root );
+    if ( !d.exists() )
+    {
+        cWarning() << "Root mountpoint" << root << "does not exist.";
+        return false;
+    }
+    return d.mkpath( target );  // This re-does everything starting from the **host** /
+}
+
+bool
+System::createTargetParentDirs( const QString& filePath ) const
+{
+    return createTargetDirs( QFileInfo( filePath ).dir().path() );
 }
 
 
-QPair<quint64, float>
-System::getTotalMemoryB()
+QPair< quint64, float >
+System::getTotalMemoryB() const
 {
 #ifdef Q_OS_LINUX
     struct sysinfo i;
     int r = sysinfo( &i );
 
-    if (r)
-        return qMakePair(0, 0.0);
+    if ( r )
+    {
+        return qMakePair( 0, 0.0 );
+    }
 
-    return qMakePair(quint64( i.mem_unit ) * quint64( i.totalram ), 1.1);
+    return qMakePair( quint64( i.mem_unit ) * quint64( i.totalram ), 1.1 );
 #elif defined( Q_OS_FREEBSD )
     unsigned long memsize;
-    size_t s = sizeof(memsize);
+    size_t s = sizeof( memsize );
 
-    int r = sysctlbyname("vm.kmem_size", &memsize, &s, NULL, 0);
-    if (r)
-        return qMakePair(0, 0.0);
+    int r = sysctlbyname( "vm.kmem_size", &memsize, &s, NULL, 0 );
+    if ( r )
+    {
+        return qMakePair( 0, 0.0 );
+    }
 
-    return qMakePair(memsize, 1.01);
+    return qMakePair( memsize, 1.01 );
 #else
-    return qMakePair(0, 0.0);  // Unsupported
+    return qMakePair( 0, 0.0 );  // Unsupported
 #endif
 }
 
 
+QString
+System::getCpuDescription() const
+{
+    QString model;
+
+#ifdef Q_OS_LINUX
+    QFile file( "/proc/cpuinfo" );
+    if ( file.open( QIODevice::ReadOnly | QIODevice::Text ) )
+        while ( !file.atEnd() )
+        {
+            QByteArray line = file.readLine();
+            if ( line.startsWith( "model name" ) && ( line.indexOf( ':' ) > 0 ) )
+            {
+                model = QString::fromLatin1( line.right( line.length() - line.indexOf( ':' ) ) );
+                break;
+            }
+        }
+#elif defined( Q_OS_FREEBSD )
+    // This would use sysctl "hw.model", which has a string value
+#endif
+    return model.simplified();
 }
+
+quint64
+System::getTotalDiskB() const
+{
+    return 0;
+}
+
+bool
+System::doChroot() const
+{
+    return m_doChroot;
+}
+
+Calamares::JobResult
+ProcessResult::explainProcess( int ec, const QString& command, const QString& output, std::chrono::seconds timeout )
+{
+    using Calamares::JobResult;
+
+    if ( ec == 0 )
+    {
+        return JobResult::ok();
+    }
+
+    QString outputMessage = output.isEmpty()
+        ? QCoreApplication::translate( "ProcessResult", "\nThere was no output from the command." )
+        : ( QCoreApplication::translate( "ProcessResult", "\nOutput:\n" ) + output );
+
+    if ( ec == static_cast< int >( ProcessResult::Code::Crashed ) )  //Crash!
+        return JobResult::error(
+            QCoreApplication::translate( "ProcessResult", "External command crashed." ),
+            QCoreApplication::translate( "ProcessResult", "Command <i>%1</i> crashed." ).arg( command )
+                + outputMessage );
+
+    if ( ec == static_cast< int >( ProcessResult::Code::FailedToStart ) )
+        return JobResult::error(
+            QCoreApplication::translate( "ProcessResult", "External command failed to start." ),
+            QCoreApplication::translate( "ProcessResult", "Command <i>%1</i> failed to start." ).arg( command ) );
+
+    if ( ec == static_cast< int >( ProcessResult::Code::NoWorkingDirectory ) )
+        return JobResult::error(
+            QCoreApplication::translate( "ProcessResult", "Internal error when starting command." ),
+            QCoreApplication::translate( "ProcessResult", "Bad parameters for process job call." ) );
+
+    if ( ec == static_cast< int >( ProcessResult::Code::TimedOut ) )
+        return JobResult::error(
+            QCoreApplication::translate( "ProcessResult", "External command failed to finish." ),
+            QCoreApplication::translate( "ProcessResult", "Command <i>%1</i> failed to finish in %2 seconds." )
+                    .arg( command )
+                    .arg( timeout.count() )
+                + outputMessage );
+
+    //Any other exit code
+    return JobResult::error(
+        QCoreApplication::translate( "ProcessResult", "External command finished with errors." ),
+        QCoreApplication::translate( "ProcessResult", "Command <i>%1</i> finished with exit code %2." )
+                .arg( command )
+                .arg( ec )
+            + outputMessage );
+}
+
+}  // namespace CalamaresUtils

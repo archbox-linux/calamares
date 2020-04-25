@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# === This file is part of Calamares - <http://github.com/calamares> ===
+# === This file is part of Calamares - <https://github.com/calamares> ===
 #
 #   Copyright 2014, Teo Mrnjavac <teo@kde.org>
 #   Copyright 2017, Alf Gaida <agaida@siduction.org>
@@ -43,6 +43,10 @@ _ = gettext.translation("calamares-python",
 def pretty_name():
     return _("Dummy python job.")
 
+status = _("Dummy python step {}").format(0)
+
+def pretty_status_message():
+    return status
 
 def run():
     """Dummy python job."""
@@ -92,11 +96,13 @@ def run():
     except KeyError:
         configlist = ["no list"]
 
+    global status
     c = 1
     for k in configlist:
+        status = _("Dummy python step {}").format(str(c) + ":" + repr(k))
         libcalamares.utils.debug(_("Dummy python step {}").format(str(k)))
         sleep(1)
-        libcalamares.job.setprogress(c * 1.0 / len(configlist))
+        libcalamares.job.setprogress(c * 1.0 / (len(configlist)+1))
         c += 1
 
     sleep(3)

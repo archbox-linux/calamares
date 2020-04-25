@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2018, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -15,80 +16,81 @@
  *   You should have received a copy of the GNU General Public License
  *   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <QDesktopWidget>
 #include "CalamaresApplication.h"
 
 #include "CalamaresConfig.h"
-#include "CalamaresWindow.h"
 #include "CalamaresVersion.h"
+#include "CalamaresWindow.h"
 #include "progresstree/ProgressTreeView.h"
-#include "progresstree/ProgressTreeModel.h"
 
+#include "Branding.h"
+#include "JobQueue.h"
+#include "Settings.h"
+#include "ViewManager.h"
 #include "modulesystem/ModuleManager.h"
 #include "utils/CalamaresUtilsGui.h"
 #include "utils/CalamaresUtilsSystem.h"
+#include "utils/Dirs.h"
 #include "utils/Logger.h"
-#include "JobQueue.h"
-#include "Branding.h"
-#include "Settings.h"
+#include "utils/Retranslator.h"
 #include "viewpages/ViewStep.h"
-#include "ViewManager.h"
 
+#include <QDesktopWidget>
 #include <QDir>
 #include <QFileInfo>
+#include <QScreen>
+#include <QTimer>
 
+/// @brief Convenience for "are the settings in debug mode"
+static bool
+isDebug()
+{
+    return Calamares::Settings::instance() && Calamares::Settings::instance()->debugMode();
+}
 
 CalamaresApplication::CalamaresApplication( int& argc, char* argv[] )
     : QApplication( argc, argv )
     , m_mainwindow( nullptr )
     , m_moduleManager( nullptr )
-    , m_debugMode( false )
 {
-    setOrganizationName( QLatin1String( CALAMARES_ORGANIZATION_NAME ) );
-    setOrganizationDomain( QLatin1String( CALAMARES_ORGANIZATION_DOMAIN ) );
-    setApplicationName( QLatin1String( CALAMARES_APPLICATION_NAME ) );
-    setApplicationVersion( QLatin1String( CALAMARES_VERSION ) );
-
-    cDebug() << "Calamares version:" << CALAMARES_VERSION;
-
-    CalamaresUtils::installTranslator( QLocale::system(), QString(), this );
+    // Setting the organization name makes the default cache
+    // directory -- where Calamares stores logs, for instance --
+    // <org>/<app>/, so we end up with ~/.cache/Calamares/calamares/
+    // which is excessively squidly.
+    //
+    // setOrganizationName( QStringLiteral( CALAMARES_ORGANIZATION_NAME ) );
+    setOrganizationDomain( QStringLiteral( CALAMARES_ORGANIZATION_DOMAIN ) );
+    setApplicationName( QStringLiteral( CALAMARES_APPLICATION_NAME ) );
+    setApplicationVersion( QStringLiteral( CALAMARES_VERSION ) );
 
     QFont f = font();
-
-    cDebug() << "Default font ====="
-             << "\nPixel size:   " << f.pixelSize()
-             << "\nPoint size:   " << f.pointSize()
-             << "\nPoint sizeF:  " << f.pointSizeF()
-             << "\nFont family:  " << f.family()
-             << "\nMetric height:" << QFontMetrics( f ).height();
-    // The following line blocks for 15s on Qt 5.1.0
-    cDebug() << "Font height:" << QFontMetrics( f ).height();
     CalamaresUtils::setDefaultFontSize( f.pointSize() );
-
-    cDebug() << "Available languages:" << QString( CALAMARES_TRANSLATION_LANGUAGES ).split( ';' );
 }
 
 
 void
 CalamaresApplication::init()
 {
-    cDebug() << "CalamaresApplication thread:" << thread();
-
-    //TODO: Icon loader
     Logger::setupLogfile();
+    cDebug() << "Calamares version:" << CALAMARES_VERSION;
+    cDebug() << "        languages:" << QString( CALAMARES_TRANSLATION_LANGUAGES ).replace( ";", ", " );
 
-    setQuitOnLastWindowClosed( false );
-
+    if ( !Calamares::Settings::instance() )
+    {
+        cError() << "Must create Calamares::Settings before the application.";
+        ::exit( 1 );
+    }
     initQmlPath();
-    initSettings();
     initBranding();
 
-    setWindowIcon( QIcon( Calamares::Branding::instance()->
-                          imagePath( Calamares::Branding::ProductIcon ) ) );
+    CalamaresUtils::installTranslator( QLocale::system(), QString() );
 
-    cDebug() << "STARTUP: initQmlPath, initSettings, initBranding done";
+    setQuitOnLastWindowClosed( false );
+    setWindowIcon( QIcon( Calamares::Branding::instance()->imagePath( Calamares::Branding::ProductIcon ) ) );
 
-    initModuleManager(); //also shows main window
+    cDebug() << "STARTUP: initSettings, initQmlPath, initBranding done";
+
+    initModuleManager();  //also shows main window
 
     cDebug() << "STARTUP: initModuleManager: module init started";
 }
@@ -96,16 +98,8 @@ CalamaresApplication::init()
 
 CalamaresApplication::~CalamaresApplication()
 {
-    cDebug( LOGVERBOSE ) << "Shutting down Calamares...";
-
-//    if ( JobQueue::instance() )
-//        JobQueue::instance()->stop();
-
-//    delete m_mainwindow;
-
-//    delete JobQueue::instance();
-
-    cDebug( LOGVERBOSE ) << "Finished shutdown.";
+    Logger::CDebug( Logger::LOGVERBOSE ) << "Shutting down Calamares...";
+    Logger::CDebug( Logger::LOGVERBOSE ) << Logger::SubEntry << "Finished shutdown.";
 }
 
 
@@ -116,20 +110,6 @@ CalamaresApplication::instance()
 }
 
 
-void
-CalamaresApplication::setDebug( bool enabled )
-{
-    m_debugMode = enabled;
-}
-
-
-bool
-CalamaresApplication::isDebug()
-{
-    return m_debugMode;
-}
-
-
 CalamaresWindow*
 CalamaresApplication::mainWindow()
 {
@@ -137,115 +117,96 @@ CalamaresApplication::mainWindow()
 }
 
 
-void
-CalamaresApplication::initQmlPath()
+static QStringList
+qmlDirCandidates( bool assumeBuilddir )
 {
-    QDir importPath;
+    static const char QML[] = "qml";
 
-    QString subpath( "qml" );
-
+    QStringList qmlDirs;
     if ( CalamaresUtils::isAppDataDirOverridden() )
     {
-        importPath = QDir( CalamaresUtils::appDataDir()
-                           .absoluteFilePath( subpath ) );
-        if ( !importPath.exists() || !importPath.isReadable() )
-        {
-            cLog() << "FATAL ERROR: explicitly configured application data directory"
-                   << CalamaresUtils::appDataDir().absolutePath()
-                   << "does not contain a valid QML modules directory at"
-                   << importPath.absolutePath()
-                   << "\nCowardly refusing to continue startup without the QML directory.";
-            ::exit( EXIT_FAILURE );
-        }
+        qmlDirs << CalamaresUtils::appDataDir().absoluteFilePath( QML );
     }
     else
     {
-        QStringList qmlDirCandidatesByPriority;
-        if ( isDebug() )
+        if ( assumeBuilddir )
         {
-            qmlDirCandidatesByPriority.append(
-                        QDir::current().absoluteFilePath(
-                        QString( "src/%1" )
-                            .arg( subpath ) ) );
+            qmlDirs << QDir::current().absoluteFilePath( "src/qml" );  // In build-dir
         }
-        qmlDirCandidatesByPriority.append( CalamaresUtils::appDataDir()
-                            .absoluteFilePath( subpath ) );
-
-        foreach ( const QString& path, qmlDirCandidatesByPriority )
-        {
-            QDir dir( path );
-            if ( dir.exists() && dir.isReadable() )
+        if ( CalamaresUtils::haveExtraDirs() )
+            for ( auto s : CalamaresUtils::extraDataDirs() )
             {
-                importPath = dir;
-                break;
+                qmlDirs << ( s + QML );
             }
-        }
-
-        if ( !importPath.exists() || !importPath.isReadable() )
-        {
-            cLog() << "FATAL ERROR: none of the expected QML paths ("
-                   << qmlDirCandidatesByPriority.join( ", " )
-                   << ") exist."
-                   << "\nCowardly refusing to continue startup without the QML directory.";
-            ::exit( EXIT_FAILURE );
-        }
+        qmlDirs << CalamaresUtils::appDataDir().absoluteFilePath( QML );
     }
 
-    CalamaresUtils::setQmlModulesDir( importPath );
+    return qmlDirs;
+}
+
+
+static QStringList
+brandingFileCandidates( bool assumeBuilddir, const QString& brandingFilename )
+{
+    QStringList brandingPaths;
+    if ( CalamaresUtils::isAppDataDirOverridden() )
+    {
+        brandingPaths << CalamaresUtils::appDataDir().absoluteFilePath( brandingFilename );
+    }
+    else
+    {
+        if ( assumeBuilddir )
+        {
+            brandingPaths << ( QDir::currentPath() + QStringLiteral( "/src/" ) + brandingFilename );
+        }
+        if ( CalamaresUtils::haveExtraDirs() )
+            for ( auto s : CalamaresUtils::extraDataDirs() )
+            {
+                brandingPaths << ( s + brandingFilename );
+            }
+        brandingPaths << QDir( CMAKE_INSTALL_FULL_SYSCONFDIR "/calamares/" ).absoluteFilePath( brandingFilename );
+        brandingPaths << CalamaresUtils::appDataDir().absoluteFilePath( brandingFilename );
+    }
+
+    return brandingPaths;
 }
 
 
 void
-CalamaresApplication::initSettings()
+CalamaresApplication::initQmlPath()
 {
-    QFileInfo settingsFile;
-    if ( CalamaresUtils::isAppDataDirOverridden() )
-    {
-        settingsFile = QFileInfo( CalamaresUtils::appDataDir().absoluteFilePath( "settings.conf" ) );
-        if ( !settingsFile.exists() || !settingsFile.isReadable() )
-        {
-            cLog() << "FATAL ERROR: explicitly configured application data directory"
-                   << CalamaresUtils::appDataDir().absolutePath()
-                   << "does not contain a valid settings.conf file."
-                   << "\nCowardly refusing to continue startup without settings.";
-            ::exit( EXIT_FAILURE );
-        }
-    }
-    else
-    {
-        QStringList settingsFileCandidatesByPriority;
-        if ( isDebug() )
-        {
-            settingsFileCandidatesByPriority.append(
-                QDir::currentPath() +
-                QDir::separator() +
-                "settings.conf" );
-        }
-        settingsFileCandidatesByPriority.append( CMAKE_INSTALL_FULL_SYSCONFDIR "/calamares/settings.conf" );
-        settingsFileCandidatesByPriority.append( CalamaresUtils::appDataDir()
-                                                    .absoluteFilePath( "settings.conf" ) );
+    QDir importPath;  // Right now, current-dir
+    QStringList qmlDirCandidatesByPriority = qmlDirCandidates( isDebug() );
+    bool found = false;
 
-        foreach ( const QString& path, settingsFileCandidatesByPriority )
+    foreach ( const QString& path, qmlDirCandidatesByPriority )
+    {
+        QDir dir( path );
+        if ( dir.exists() && dir.isReadable() )
         {
-            QFileInfo pathFi( path );
-            if ( pathFi.exists() && pathFi.isReadable() )
-            {
-                settingsFile = pathFi;
-                break;
-            }
-        }
-
-        if ( !settingsFile.exists() || !settingsFile.isReadable() )
-        {
-            cLog() << "FATAL ERROR: none of the expected configuration file paths ("
-                   << settingsFileCandidatesByPriority.join( ", " )
-                   << ") contain a valid settings.conf file."
-                   << "\nCowardly refusing to continue startup without settings.";
-            ::exit( EXIT_FAILURE );
+            importPath = dir;
+            found = true;
+            break;
         }
     }
 
-    new Calamares::Settings( settingsFile.absoluteFilePath(), isDebug(), this );
+    if ( !found || !importPath.exists() || !importPath.isReadable() )
+    {
+        cError() << "Cowardly refusing to continue startup without a QML directory."
+                 << Logger::DebugList( qmlDirCandidatesByPriority );
+        if ( CalamaresUtils::isAppDataDirOverridden() )
+        {
+            cError() << "FATAL: explicitly configured application data directory is missing qml/";
+        }
+        else
+        {
+            cError() << "FATAL: none of the expected QML paths exist.";
+        }
+        ::exit( EXIT_FAILURE );
+    }
+
+    cDebug() << "Using Calamares QML directory" << importPath.absolutePath();
+    CalamaresUtils::setQmlModulesDir( importPath );
 }
 
 
@@ -255,63 +216,40 @@ CalamaresApplication::initBranding()
     QString brandingComponentName = Calamares::Settings::instance()->brandingComponentName();
     if ( brandingComponentName.simplified().isEmpty() )
     {
-        cLog() << "FATAL ERROR: branding component not set in settings.conf";
+        cError() << "FATAL: branding component not set in settings.conf";
         ::exit( EXIT_FAILURE );
     }
 
-    QString brandingDescriptorSubpath = QString( "branding/%1/branding.desc" )
-                                        .arg( brandingComponentName );
+    QString brandingDescriptorSubpath = QString( "branding/%1/branding.desc" ).arg( brandingComponentName );
+    QStringList brandingFileCandidatesByPriority = brandingFileCandidates( isDebug(), brandingDescriptorSubpath );
 
     QFileInfo brandingFile;
-    if ( CalamaresUtils::isAppDataDirOverridden() )
+    bool found = false;
+
+    foreach ( const QString& path, brandingFileCandidatesByPriority )
     {
-        brandingFile = QFileInfo( CalamaresUtils::appDataDir()
-                                  .absoluteFilePath( brandingDescriptorSubpath ) );
-        if ( !brandingFile.exists() || !brandingFile.isReadable() )
+        QFileInfo pathFi( path );
+        if ( pathFi.exists() && pathFi.isReadable() )
         {
-            cLog() << "FATAL ERROR: explicitly configured application data directory"
-                   << CalamaresUtils::appDataDir().absolutePath()
-                   << "does not contain a valid branding component descriptor at"
-                   << brandingFile.absoluteFilePath()
-                   << "\nCowardly refusing to continue startup without branding.";
-            ::exit( EXIT_FAILURE );
+            brandingFile = pathFi;
+            found = true;
+            break;
         }
     }
-    else
+
+    if ( !found || !brandingFile.exists() || !brandingFile.isReadable() )
     {
-        QStringList brandingFileCandidatesByPriority;
-        if ( isDebug() )
+        cError() << "Cowardly refusing to continue startup without branding."
+                 << Logger::DebugList( brandingFileCandidatesByPriority );
+        if ( CalamaresUtils::isAppDataDirOverridden() )
         {
-            brandingFileCandidatesByPriority.append(
-                QDir::currentPath() +
-                QDir::separator() +
-                "src" +
-                QDir::separator() +
-                brandingDescriptorSubpath );
+            cError() << "FATAL: explicitly configured application data directory is missing" << brandingComponentName;
         }
-        brandingFileCandidatesByPriority.append( QDir( CMAKE_INSTALL_FULL_SYSCONFDIR "/calamares/" )
-                                                 .absoluteFilePath( brandingDescriptorSubpath ) );
-        brandingFileCandidatesByPriority.append( CalamaresUtils::appDataDir()
-                                                 .absoluteFilePath( brandingDescriptorSubpath ) );
-
-        foreach ( const QString& path, brandingFileCandidatesByPriority )
+        else
         {
-            QFileInfo pathFi( path );
-            if ( pathFi.exists() && pathFi.isReadable() )
-            {
-                brandingFile = pathFi;
-                break;
-            }
+            cError() << "FATAL: none of the expected branding descriptor file paths exist.";
         }
-
-        if ( !brandingFile.exists() || !brandingFile.isReadable() )
-        {
-            cLog() << "FATAL ERROR: none of the expected branding descriptor file paths ("
-                   << brandingFileCandidatesByPriority.join( ", " )
-                   << ") contain a valid branding.desc file."
-                   << "\nCowardly refusing to continue startup without branding.";
-            ::exit( EXIT_FAILURE );
-        }
+        ::exit( EXIT_FAILURE );
     }
 
     new Calamares::Branding( brandingFile.absoluteFilePath(), this );
@@ -321,13 +259,47 @@ CalamaresApplication::initBranding()
 void
 CalamaresApplication::initModuleManager()
 {
-    m_moduleManager = new Calamares::ModuleManager(
-        Calamares::Settings::instance()->modulesSearchPaths(), this );
-    connect( m_moduleManager, &Calamares::ModuleManager::initDone,
-             this,            &CalamaresApplication::initView );
+    m_moduleManager = new Calamares::ModuleManager( Calamares::Settings::instance()->modulesSearchPaths(), this );
+    connect( m_moduleManager, &Calamares::ModuleManager::initDone, this, &CalamaresApplication::initView );
     m_moduleManager->init();
 }
 
+/** @brief centers the widget @p w on (a) screen
+ *
+ * This tries to duplicate the (deprecated) qApp->desktop()->availableGeometry()
+ * placement by iterating over screens and putting Calamares in the first
+ * one where it fits; this is *generally* the primary screen.
+ *
+ * With debugging, it would look something like this (2 screens attached,
+ * primary at +1080+240 because I have a very strange X setup). Before
+ * being mapped, the Calamares window is at +0+0 but does have a size.
+ * The first screen's geometry includes the offset from the origin in
+ * screen coordinates.
+ *
+ *  Proposed window size: 1024 520
+ *  Window QRect(0,0 1024x520)
+ *  Screen QRect(1080,240 2560x1440)
+ *  Moving QPoint(1848,700)
+ *  Screen QRect(0,0 1080x1920)
+ *
+ */
+static void
+centerWindowOnScreen( QWidget* w )
+{
+    QList< QScreen* > screens = qApp->screens();
+    QPoint windowCenter = w->rect().center();
+    QSize windowSize = w->rect().size();
+
+    for ( const auto* screen : screens )
+    {
+        QSize screenSize = screen->availableGeometry().size();
+        if ( ( screenSize.width() >= windowSize.width() ) && ( screenSize.height() >= windowSize.height() ) )
+        {
+            w->move( screen->availableGeometry().center() - windowCenter );
+            break;
+        }
+    }
+}
 
 void
 CalamaresApplication::initView()
@@ -336,17 +308,17 @@ CalamaresApplication::initView()
     initJobQueue();
     cDebug() << "STARTUP: initJobQueue done";
 
-    m_mainwindow = new CalamaresWindow(); //also creates ViewManager
+    m_mainwindow = new CalamaresWindow();  //also creates ViewManager
 
-    connect( m_moduleManager, &Calamares::ModuleManager::modulesLoaded,
-             this, &CalamaresApplication::initViewSteps );
+    connect( m_moduleManager, &Calamares::ModuleManager::modulesLoaded, this, &CalamaresApplication::initViewSteps );
+    connect( m_moduleManager, &Calamares::ModuleManager::modulesFailed, this, &CalamaresApplication::initFailed );
 
-    m_moduleManager->loadModules();
+    QTimer::singleShot( 0, m_moduleManager, &Calamares::ModuleManager::loadModules );
 
-    m_mainwindow->move(
-        this->desktop()->availableGeometry().center() -
-        m_mainwindow->rect().center() );
-
+    if ( Calamares::Branding::instance() && Calamares::Branding::instance()->windowPlacementCentered() )
+    {
+        centerWindowOnScreen( m_mainwindow );
+    }
     cDebug() << "STARTUP: CalamaresWindow created; loadModules started";
 }
 
@@ -355,12 +327,28 @@ void
 CalamaresApplication::initViewSteps()
 {
     cDebug() << "STARTUP: loadModules for all modules done";
-    m_mainwindow->show();
-    ProgressTreeModel* m = new ProgressTreeModel( this );
-    ProgressTreeView::instance()->setModel( m );
+    m_moduleManager->checkRequirements();
+    if ( Calamares::Branding::instance()->windowMaximize() )
+    {
+        m_mainwindow->setWindowFlag( Qt::FramelessWindowHint );
+        m_mainwindow->showMaximized();
+    }
+    else
+    {
+        m_mainwindow->show();
+    }
+
     cDebug() << "STARTUP: Window now visible and ProgressTreeView populated";
+    cDebug() << Logger::SubEntry << Calamares::ViewManager::instance()->viewSteps().count() << "view steps loaded.";
+    Calamares::ViewManager::instance()->onInitComplete();
 }
 
+void
+CalamaresApplication::initFailed( const QStringList& l )
+{
+    cError() << "STARTUP: failed modules are" << l;
+    m_mainwindow->show();
+}
 
 void
 CalamaresApplication::initJobQueue()

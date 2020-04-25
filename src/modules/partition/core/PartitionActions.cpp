@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2017, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2019, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2019, Collabora Ltd <arnaud.ferraris@collabora.com>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -20,15 +21,17 @@
 #include "PartitionActions.h"
 
 #include "core/KPMHelpers.h"
-#include "core/PartitionInfo.h"
-#include "core/PartitionCoreModule.h"
 #include "core/PartUtils.h"
+#include "core/PartitionCoreModule.h"
+#include "core/PartitionInfo.h"
 
 #include "utils/CalamaresUtilsSystem.h"
+#include "utils/NamedEnum.h"
 #include "utils/Units.h"
+
+#include "GlobalStorage.h"
 #include "JobQueue.h"
 #include "utils/Logger.h"
-#include "GlobalStorage.h"
 
 #include <kpmcore/core/device.h>
 #include <kpmcore/core/partition.h>
@@ -37,116 +40,118 @@
 
 namespace PartitionActions
 {
-using CalamaresUtils::GiBtoBytes;
-using CalamaresUtils::MiBtoBytes;
 using CalamaresUtils::operator""_GiB;
 using CalamaresUtils::operator""_MiB;
 
 qint64
-swapSuggestion( const qint64 availableSpaceB )
+swapSuggestion( const qint64 availableSpaceB, Choices::SwapChoice swap )
 {
-    /* If suspend-to-disk is demanded, then we always need enough
-     * swap to write the whole memory to disk -- between 2GB and 8GB
-     * RAM give proportionally more swap, and from 8GB RAM keep
-     * swap = RAM.
-     *
-     * If suspend-to-disk is not demanded, then ramp up more slowly,
-     * to 8GB swap at 16GB memory, and then drop to 4GB for "large
-     * memory" machines, on the assumption that those don't need swap
-     * because they have tons of memory (or whatever they are doing,
-     * had better not run into swap).
-     */
+    if ( ( swap != Choices::SmallSwap ) && ( swap != Choices::FullSwap ) )
+    {
+        return 0;
+    }
+
+    // See partition.conf for explanation
     qint64 suggestedSwapSizeB = 0;
     auto memory = CalamaresUtils::System::instance()->getTotalMemoryB();
     qint64 availableRamB = memory.first;
     qreal overestimationFactor = memory.second;
 
-    bool ensureSuspendToDisk =
-        Calamares::JobQueue::instance()->globalStorage()->
-            value( "ensureSuspendToDisk" ).toBool();
+    bool ensureSuspendToDisk = swap == Choices::FullSwap;
 
-    if ( ensureSuspendToDisk )
+    // Ramp up quickly to 8GiB, then follow memory size
+    if ( availableRamB <= 4_GiB )
     {
-        if ( availableRamB < 4_GiB )
-            suggestedSwapSizeB = qMax( 2_GiB, availableRamB * 2 );
-        else if ( availableRamB >= 4_GiB && availableRamB < 8_GiB )
-            suggestedSwapSizeB = 8_GiB;
-        else
-            suggestedSwapSizeB = availableRamB;
-
-        suggestedSwapSizeB *= overestimationFactor;
+        suggestedSwapSizeB = availableRamB * 2;
     }
-    else //if we don't care about suspend to disk
+    else if ( availableRamB <= 8_GiB )
     {
-        if ( availableRamB < 2_GiB )
-            suggestedSwapSizeB = qMax( 2_GiB, availableRamB * 2 );
-        else if ( availableRamB >= 2_GiB && availableRamB < 8_GiB )
-            suggestedSwapSizeB = availableRamB;
-        else if ( availableRamB >= 8_GiB && availableRamB < 16_GiB )
-            suggestedSwapSizeB = 8_GiB;
-        else
-            suggestedSwapSizeB = 4_GiB;
-
-        suggestedSwapSizeB *= overestimationFactor;
-
-        // don't use more than 10% of available space
-        qreal maxSwapDiskRatio = 1.10;
-        qint64 maxSwapSizeB = availableSpaceB * maxSwapDiskRatio;
-        if ( suggestedSwapSizeB > maxSwapSizeB )
-            suggestedSwapSizeB = maxSwapSizeB;
+        suggestedSwapSizeB = 8_GiB;
+    }
+    else
+    {
+        suggestedSwapSizeB = availableRamB;
     }
 
-    cDebug() << "Suggested swap size:" << suggestedSwapSizeB / 1024. / 1024. /1024. << "GiB";
+    // .. top out at 8GiB if we don't care about suspend
+    if ( !ensureSuspendToDisk )
+    {
+        suggestedSwapSizeB = qMin( 8_GiB, suggestedSwapSizeB );
+    }
+
+
+    // Allow for a fudge factor
+    suggestedSwapSizeB *= overestimationFactor;
+
+    // don't use more than 10% of available space
+    if ( !ensureSuspendToDisk )
+    {
+        suggestedSwapSizeB = qMin( suggestedSwapSizeB, qint64( 0.10 * availableSpaceB ) );
+    }
+
+    cDebug() << "Suggested swap size:" << suggestedSwapSizeB / 1024. / 1024. / 1024. << "GiB";
 
     return suggestedSwapSizeB;
 }
 
-
 void
-doAutopartition( PartitionCoreModule* core, Device* dev, const QString& luksPassphrase )
+doAutopartition( PartitionCoreModule* core, Device* dev, Choices::AutoPartitionOptions o )
 {
     Calamares::GlobalStorage* gs = Calamares::JobQueue::instance()->globalStorage();
+    QString defaultFsType = o.defaultFsType;
+    if ( FileSystem::typeForName( defaultFsType ) == FileSystem::Unknown )
+    {
+        defaultFsType = "ext4";
+    }
 
     bool isEfi = PartUtils::isEfiSystem();
 
-    QString defaultFsType = gs->value( "defaultFileSystemType" ).toString();
-    if ( FileSystem::typeForName( defaultFsType ) == FileSystem::Unknown )
-        defaultFsType = "ext4";
-
     // Partition sizes are expressed in MiB, should be multiples of
-    // the logical sector size (usually 512B).
-    int uefisys_part_size = 0;
-    int empty_space_size = 0;
-    if ( isEfi )
-    {
-        uefisys_part_size = 300;
-        empty_space_size = 2;
-    }
-    else
-    {
-        // we start with a 1MiB offset before the first partition
-        empty_space_size = 1;
-    }
-
-    qint64 firstFreeSector = MiBtoBytes(empty_space_size) / dev->logicalSize() + 1;
+    // the logical sector size (usually 512B). EFI starts with 2MiB
+    // empty and a EFI boot partition, while BIOS starts at
+    // the 1MiB boundary (usually sector 2048).
+    int empty_space_sizeB = isEfi ? 2_MiB : 1_MiB;
+    int uefisys_part_sizeB = 0_MiB;
 
     if ( isEfi )
     {
-        qint64 lastSector = firstFreeSector + ( MiBtoBytes(uefisys_part_size) / dev->logicalSize() );
+        if ( gs->contains( "efiSystemPartitionSize" ) )
+        {
+            CalamaresUtils::Partition::PartitionSize part_size
+                = CalamaresUtils::Partition::PartitionSize( gs->value( "efiSystemPartitionSize" ).toString() );
+            uefisys_part_sizeB = part_size.toBytes( dev->capacity() );
+        }
+        else
+        {
+            uefisys_part_sizeB = 300_MiB;
+        }
+    }
+
+    // Since sectors count from 0, if the space is 2048 sectors in size,
+    // the first free sector has number 2048 (and there are 2048 sectors
+    // before that one, numbered 0..2047).
+    qint64 firstFreeSector = CalamaresUtils::bytesToSectors( empty_space_sizeB, dev->logicalSize() );
+
+    if ( isEfi )
+    {
+        qint64 efiSectorCount = CalamaresUtils::bytesToSectors( uefisys_part_sizeB, dev->logicalSize() );
+        Q_ASSERT( efiSectorCount > 0 );
+
+        // Since sectors count from 0, and this partition is created starting
+        // at firstFreeSector, we need efiSectorCount sectors, numbered
+        // firstFreeSector..firstFreeSector+efiSectorCount-1.
+        qint64 lastSector = firstFreeSector + efiSectorCount - 1;
         core->createPartitionTable( dev, PartitionTable::gpt );
-        Partition* efiPartition = KPMHelpers::createNewPartition(
-            dev->partitionTable(),
-            *dev,
-            PartitionRole( PartitionRole::Primary ),
-            FileSystem::Fat32,
-            firstFreeSector,
-            lastSector,
-            PartitionTable::FlagEsp
-        );
+        Partition* efiPartition = KPMHelpers::createNewPartition( dev->partitionTable(),
+                                                                  *dev,
+                                                                  PartitionRole( PartitionRole::Primary ),
+                                                                  FileSystem::Fat32,
+                                                                  firstFreeSector,
+                                                                  lastSector,
+                                                                  KPM_PARTITION_FLAG( None ) );
         PartitionInfo::setFormat( efiPartition, true );
-        PartitionInfo::setMountPoint( efiPartition, gs->value( "efiSystemPartition" )
-                                                        .toString() );
-        core->createPartition( dev, efiPartition, PartitionTable::FlagEsp | PartitionTable::FlagBoot );
+        PartitionInfo::setMountPoint( efiPartition, o.efiPartitionMountPoint );
+        core->createPartition( dev, efiPartition, KPM_PARTITION_FLAG_ESP );
         firstFreeSector = lastSector + 1;
     }
     else
@@ -154,81 +159,54 @@ doAutopartition( PartitionCoreModule* core, Device* dev, const QString& luksPass
         core->createPartitionTable( dev, PartitionTable::msdos );
     }
 
-    const bool mayCreateSwap = !gs->value( "neverCreateSwap" ).toBool();
+    const bool mayCreateSwap = ( o.swap == Choices::SmallSwap ) || ( o.swap == Choices::FullSwap );
     bool shouldCreateSwap = false;
     qint64 suggestedSwapSizeB = 0;
 
     if ( mayCreateSwap )
     {
         qint64 availableSpaceB = ( dev->totalLogical() - firstFreeSector ) * dev->logicalSize();
-        suggestedSwapSizeB = swapSuggestion( availableSpaceB );
-        qint64 requiredSpaceB =
-                GiBtoBytes( gs->value( "requiredStorageGB" ).toDouble() + 0.1 + 2.0 ) +
-                suggestedSwapSizeB;
+        suggestedSwapSizeB = swapSuggestion( availableSpaceB, o.swap );
+        // Space required by this installation is what the distro claims is needed
+        // (via global configuration) plus the swap size plus a fudge factor of
+        // 0.6GiB (this was 2.1GiB up to Calamares 3.2.2).
+        qint64 requiredSpaceB = o.requiredSpaceB + 600_MiB + suggestedSwapSizeB;
 
         // If there is enough room for ESP + root + swap, create swap, otherwise don't.
         shouldCreateSwap = availableSpaceB > requiredSpaceB;
     }
 
-    qint64 lastSectorForRoot = dev->totalLogical() - 1; //last sector of the device
+    qint64 lastSectorForRoot = dev->totalLogical() - 1;  //last sector of the device
     if ( shouldCreateSwap )
     {
         lastSectorForRoot -= suggestedSwapSizeB / dev->logicalSize() + 1;
     }
 
-    Partition* rootPartition = nullptr;
-    if ( luksPassphrase.isEmpty() )
-    {
-        rootPartition = KPMHelpers::createNewPartition(
-            dev->partitionTable(),
-            *dev,
-            PartitionRole( PartitionRole::Primary ),
-            FileSystem::typeForName( defaultFsType ),
-            firstFreeSector,
-            lastSectorForRoot
-        );
-    }
-    else
-    {
-        rootPartition = KPMHelpers::createNewEncryptedPartition(
-            dev->partitionTable(),
-            *dev,
-            PartitionRole( PartitionRole::Primary ),
-            FileSystem::typeForName( defaultFsType ),
-            firstFreeSector,
-            lastSectorForRoot,
-            luksPassphrase
-       );
-    }
-    PartitionInfo::setFormat( rootPartition, true );
-    PartitionInfo::setMountPoint( rootPartition, "/" );
-    core->createPartition( dev, rootPartition );
+    core->layoutApply( dev, firstFreeSector, lastSectorForRoot, o.luksPassphrase );
 
     if ( shouldCreateSwap )
     {
         Partition* swapPartition = nullptr;
-        if ( luksPassphrase.isEmpty() )
+        if ( o.luksPassphrase.isEmpty() )
         {
-            swapPartition = KPMHelpers::createNewPartition(
-                dev->partitionTable(),
-                *dev,
-                PartitionRole( PartitionRole::Primary ),
-                FileSystem::LinuxSwap,
-                lastSectorForRoot + 1,
-                dev->totalLogical() - 1
-            );
+            swapPartition = KPMHelpers::createNewPartition( dev->partitionTable(),
+                                                            *dev,
+                                                            PartitionRole( PartitionRole::Primary ),
+                                                            FileSystem::LinuxSwap,
+                                                            lastSectorForRoot + 1,
+                                                            dev->totalLogical() - 1,
+                                                            KPM_PARTITION_FLAG( None ) );
         }
         else
         {
-            swapPartition = KPMHelpers::createNewEncryptedPartition(
-                dev->partitionTable(),
-                *dev,
-                PartitionRole( PartitionRole::Primary ),
-                FileSystem::LinuxSwap,
-                lastSectorForRoot + 1,
-                dev->totalLogical() - 1,
-                luksPassphrase
-            );
+            swapPartition = KPMHelpers::createNewEncryptedPartition( dev->partitionTable(),
+                                                                     *dev,
+                                                                     PartitionRole( PartitionRole::Primary ),
+                                                                     FileSystem::LinuxSwap,
+                                                                     lastSectorForRoot + 1,
+                                                                     dev->totalLogical() - 1,
+                                                                     o.luksPassphrase,
+                                                                     KPM_PARTITION_FLAG( None ) );
         }
         PartitionInfo::setFormat( swapPartition, true );
         core->createPartition( dev, swapPartition );
@@ -239,67 +217,78 @@ doAutopartition( PartitionCoreModule* core, Device* dev, const QString& luksPass
 
 
 void
-doReplacePartition( PartitionCoreModule* core,
-                    Device* dev,
-                    Partition* partition,
-                    const QString& luksPassphrase )
+doReplacePartition( PartitionCoreModule* core, Device* dev, Partition* partition, Choices::ReplacePartitionOptions o )
 {
+    qint64 firstSector, lastSector;
+
     cDebug() << "doReplacePartition for device" << partition->partitionPath();
 
-    QString defaultFsType = Calamares::JobQueue::instance()->
-                                globalStorage()->
-                                value( "defaultFileSystemType" ).toString();
+    QString defaultFsType = o.defaultFsType;
     if ( FileSystem::typeForName( defaultFsType ) == FileSystem::Unknown )
+    {
         defaultFsType = "ext4";
+    }
 
     PartitionRole newRoles( partition->roles() );
     if ( partition->roles().has( PartitionRole::Extended ) )
+    {
         newRoles = PartitionRole( PartitionRole::Primary );
+    }
 
     if ( partition->roles().has( PartitionRole::Unallocated ) )
     {
         newRoles = PartitionRole( PartitionRole::Primary );
-        cDebug() << "WARNING: selected partition is free space";
+        cWarning() << "selected partition is free space";
         if ( partition->parent() )
         {
             Partition* parent = dynamic_cast< Partition* >( partition->parent() );
             if ( parent && parent->roles().has( PartitionRole::Extended ) )
+            {
                 newRoles = PartitionRole( PartitionRole::Logical );
+            }
         }
     }
 
-    Partition* newPartition = nullptr;
-    if ( luksPassphrase.isEmpty() )
-    {
-        newPartition = KPMHelpers::createNewPartition(
-            partition->parent(),
-            *dev,
-            newRoles,
-            FileSystem::typeForName( defaultFsType ),
-            partition->firstSector(),
-            partition->lastSector()
-        );
-    }
-    else
-    {
-        newPartition = KPMHelpers::createNewEncryptedPartition(
-            partition->parent(),
-            *dev,
-            newRoles,
-            FileSystem::typeForName( defaultFsType ),
-            partition->firstSector(),
-            partition->lastSector(),
-            luksPassphrase
-        );
-    }
-    PartitionInfo::setMountPoint( newPartition, "/" );
-    PartitionInfo::setFormat( newPartition, true );
-
+    // Save the first and last sector values as the partition will be deleted
+    firstSector = partition->firstSector();
+    lastSector = partition->lastSector();
     if ( !partition->roles().has( PartitionRole::Unallocated ) )
+    {
         core->deletePartition( dev, partition );
-    core->createPartition( dev, newPartition );
+    }
+
+    core->layoutApply( dev, firstSector, lastSector, o.luksPassphrase );
 
     core->dumpQueue();
 }
 
+namespace Choices
+{
+static const NamedEnumTable< SwapChoice >&
+nameTable()
+{
+    static const NamedEnumTable< SwapChoice > names { { QStringLiteral( "none" ), SwapChoice::NoSwap },
+                                                      { QStringLiteral( "small" ), SwapChoice::SmallSwap },
+                                                      { QStringLiteral( "suspend" ), SwapChoice::FullSwap },
+                                                      { QStringLiteral( "reuse" ), SwapChoice::ReuseSwap },
+                                                      { QStringLiteral( "file" ), SwapChoice::SwapFile } };
+
+    return names;
 }
+
+SwapChoice
+nameToChoice( QString name, bool& ok )
+{
+    return nameTable().find( name, ok );
+}
+
+QString
+choiceToName( SwapChoice c )
+{
+    bool ok = false;
+    return nameTable().find( c, ok );
+}
+
+}  // namespace Choices
+
+}  // namespace PartitionActions

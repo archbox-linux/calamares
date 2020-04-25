@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *
@@ -16,20 +16,29 @@
  *   along with Calamares. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef WELCOMEPAGEPLUGIN_H
-#define WELCOMEPAGEPLUGIN_H
+#ifndef WELCOMEVIEWSTEP_H
+#define WELCOMEVIEWSTEP_H
+
+
+#include "DllMacro.h"
+#include "modulesystem/Requirement.h"
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
 
 #include <QObject>
-
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
-
-#include <PluginDllMacro.h>
-
 #include <QVariantMap>
 
 class WelcomePage;
-class RequirementsChecker;
+class GeneralRequirements;
+class Config;
+
+namespace CalamaresUtils
+{
+namespace GeoIP
+{
+class Handler;
+}
+}  // namespace CalamaresUtils
 
 class PLUGINDLLEXPORT WelcomeViewStep : public Calamares::ViewStep
 {
@@ -43,25 +52,32 @@ public:
 
     QWidget* widget() override;
 
-    void next() override;
-    void back() override;
-
     bool isNextEnabled() const override;
     bool isBackEnabled() const override;
 
     bool isAtBeginning() const override;
     bool isAtEnd() const override;
 
-    QList< Calamares::job_ptr > jobs() const override;
+    Calamares::JobList jobs() const override;
 
     void setConfigurationMap( const QVariantMap& configurationMap ) override;
 
+    /** @brief Sets the country that Calamares is running in.
+     *
+     * This (ideally) sets up language and locale settings that are right for
+     * the given 2-letter country code. Uses the handler's information (if
+     * given) for error reporting.
+     */
+    void setCountry( const QString&, CalamaresUtils::GeoIP::Handler* handler );
+
+    Calamares::RequirementsList checkRequirements() override;
+
 private:
     WelcomePage* m_widget;
-
-    RequirementsChecker* m_requirementsChecker;
+    GeneralRequirements* m_requirementsChecker;
+    Config* m_conf;
 };
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( WelcomeViewStepFactory )
 
-#endif // WELCOMEPAGEPLUGIN_H
+#endif  // WELCOMEVIEWSTEP_H

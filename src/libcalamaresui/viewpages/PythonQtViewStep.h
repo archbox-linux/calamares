@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2016, Teo Mrnjavac <teo@kde.org>
  *
@@ -30,8 +30,7 @@ class PythonQtViewStep : public Calamares::ViewStep
 {
     Q_OBJECT
 public:
-    PythonQtViewStep( PythonQtObjectPtr cxt,
-                      QObject* parent = nullptr );
+    PythonQtViewStep( PythonQtObjectPtr cxt, QObject* parent = nullptr );
 
     QString prettyName() const override;
 
@@ -39,6 +38,8 @@ public:
 
     void next() override;
     void back() override;
+    void onLeave() override;
+    void onActivate() override;
 
     bool isNextEnabled() const override;
     bool isBackEnabled() const override;
@@ -46,7 +47,7 @@ public:
     bool isAtBeginning() const override;
     bool isAtEnd() const override;
 
-    QList< Calamares::job_ptr > jobs() const override;
+    JobList jobs() const override;
 
     void setConfigurationMap( const QVariantMap& configurationMap ) override;
 
@@ -60,6 +61,6 @@ private:
     PythonQtObjectPtr m_obj;
 };
 
-}
+}  // namespace Calamares
 
-#endif // PYTHONQTVIEWSTEP_H
+#endif  // PYTHONQTVIEWSTEP_H

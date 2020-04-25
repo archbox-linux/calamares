@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2018, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -23,13 +24,19 @@ Presentation
 {
     id: presentation
 
-    Timer {
-        interval: 5000
-        running: false
-        repeat: true
-        onTriggered: presentation.goToNextSlide()
+    function nextSlide() {
+        console.log("QML Component (default slideshow) Next slide");
+        presentation.goToNextSlide();
     }
-    
+
+    Timer {
+        id: advanceTimer
+        interval: 1000
+        running: presentation.activatedInCalamares
+        repeat: true
+        onTriggered: nextSlide()
+    }
+
     Slide {
 
         Image {
@@ -48,16 +55,32 @@ Presentation
                   "To create a Calamares presentation in QML, import calamares.slideshow,<br/>"+
                   "define a Presentation element with as many Slide elements as needed."
             wrapMode: Text.WordWrap
-            width: root.width
+            width: presentation.width
             horizontalAlignment: Text.Center
         }
     }
 
     Slide {
-        centeredText: "This is a second Slide element."
+        centeredText: qsTr("This is a second Slide element.")
     }
 
     Slide {
-        centeredText: "This is a third Slide element."
+        centeredText: qsTr("This is a third Slide element.")
     }
+
+    // When this slideshow is loaded as a V1 slideshow, only
+    // activatedInCalamares is set, which starts the timer (see above).
+    //
+    // In V2, also the onActivate() and onLeave() methods are called.
+    // These example functions log a message (and re-start the slides
+    // from the first).
+    function onActivate() {
+        console.log("QML Component (default slideshow) activated");
+        presentation.currentSlide = 0;
+    }
+    
+    function onLeave() {
+        console.log("QML Component (default slideshow) deactivated");
+    }
+
 }

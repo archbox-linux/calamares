@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2015, Anke Boersma <demm@kaosx.us>
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
@@ -20,9 +20,9 @@
 #ifndef LICENSEPAGEPLUGIN_H
 #define LICENSEPAGEPLUGIN_H
 
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
-#include <PluginDllMacro.h>
+#include "DllMacro.h"
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
 
 #include <QObject>
 #include <QUrl>
@@ -42,9 +42,6 @@ public:
 
     QWidget* widget() override;
 
-    void next() override;
-    void back() override;
-
     bool isNextEnabled() const override;
     bool isBackEnabled() const override;
 
@@ -61,4 +58,4 @@ private:
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( LicenseViewStepFactory )
 
-#endif // LICENSEPAGEPLUGIN_H
+#endif  // LICENSEPAGEPLUGIN_H

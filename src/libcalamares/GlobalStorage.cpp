@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -21,19 +21,16 @@
 #include "JobQueue.h"
 
 #include "utils/Logger.h"
+#include "utils/Units.h"
+#include "utils/Yaml.h"
 
-#ifdef WITH_PYTHON
-#include "PythonHelper.h"
+#include <QFile>
+#include <QJsonDocument>
 
+using CalamaresUtils::operator""_MiB;
 
-#undef slots
-#include <boost/python/list.hpp>
-#include <boost/python/str.hpp>
-
-namespace bp = boost::python;
-#endif
-
-namespace Calamares {
+namespace Calamares
+{
 
 GlobalStorage::GlobalStorage()
     : QObject( nullptr )
@@ -94,76 +91,68 @@ GlobalStorage::debugDump() const
     }
 }
 
-} // namespace Calamares
-
-#ifdef WITH_PYTHON
-
-namespace CalamaresPython
+bool
+GlobalStorage::save( const QString& filename )
 {
-
-Calamares::GlobalStorage* GlobalStoragePythonWrapper::s_gs_instance = nullptr;
-
-// The special handling for nullptr is only for the testing
-// script for the python bindings, which passes in None;
-// normal use will have a GlobalStorage from JobQueue::instance()
-// passed in. Testing use will leak the allocated GlobalStorage
-// object, but that's OK for testing.
-GlobalStoragePythonWrapper::GlobalStoragePythonWrapper( Calamares::GlobalStorage* gs )
-    : m_gs( gs ? gs : s_gs_instance )
-{
-    if (!m_gs)
+    QFile f( filename );
+    if ( !f.open( QFile::WriteOnly ) )
     {
-        s_gs_instance = new Calamares::GlobalStorage;
-        m_gs = s_gs_instance;
+        return false;
     }
+
+    f.write( QJsonDocument::fromVariant( m ).toJson() );
+    f.close();
+    return true;
 }
 
 bool
-GlobalStoragePythonWrapper::contains( const std::string& key ) const
+GlobalStorage::load( const QString& filename )
 {
-    return m_gs->contains( QString::fromStdString( key ) );
+    QFile f( filename );
+    if ( !f.open( QFile::ReadOnly ) )
+    {
+        return false;
+    }
+
+    QJsonParseError e;
+    QJsonDocument d = QJsonDocument::fromJson( f.read( 1_MiB ), &e );
+    if ( d.isNull() )
+    {
+        cWarning() << filename << e.errorString();
+    }
+    else if ( !d.isObject() )
+    {
+        cWarning() << filename << "Not suitable JSON.";
+    }
+    else
+    {
+        auto map = d.toVariant().toMap();
+        for ( auto i = map.constBegin(); i != map.constEnd(); ++i )
+        {
+            insert( i.key(), *i );
+        }
+        return true;
+    }
+    return false;
+}
+
+bool
+GlobalStorage::saveYaml( const QString& filename )
+{
+    return CalamaresUtils::saveYaml( filename, m );
+}
+
+bool
+GlobalStorage::loadYaml( const QString& filename )
+{
+    bool ok = false;
+    auto gs = CalamaresUtils::loadYaml( filename, &ok );
+    if ( ok )
+    {
+        m = gs;
+    }
+    return ok;
 }
 
 
-int
-GlobalStoragePythonWrapper::count() const
-{
-    return m_gs->count();
-}
-
-
-void
-GlobalStoragePythonWrapper::insert( const std::string& key,
-                       const bp::object& value )
-{
-    m_gs->insert( QString::fromStdString( key ),
-                CalamaresPython::variantFromPyObject( value ) );
-}
-
-bp::list
-GlobalStoragePythonWrapper::keys() const
-{
-    bp::list pyList;
-    const auto keys = m_gs->keys();
-    for ( const QString& key : keys )
-        pyList.append( key.toStdString() );
-    return pyList;
-}
-
-
-int
-GlobalStoragePythonWrapper::remove( const std::string& key )
-{
-    return m_gs->remove( QString::fromStdString( key ) );
-}
-
-
-bp::object
-GlobalStoragePythonWrapper::value( const std::string& key ) const
-{
-    return CalamaresPython::variantToPyObject( m_gs->value( QString::fromStdString( key ) ) );
-}
-
-} // namespace CalamaresPython
-
-#endif // WITH_PYTHON
+}  // namespace Calamares

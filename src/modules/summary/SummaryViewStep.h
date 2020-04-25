@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *
@@ -21,10 +21,10 @@
 
 #include <QObject>
 
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
 
-#include <PluginDllMacro.h>
+#include "DllMacro.h"
 
 class SummaryPage;
 
@@ -39,9 +39,6 @@ public:
     QString prettyName() const override;
 
     QWidget* widget() override;
-
-    void next() override;
-    void back() override;
 
     bool isNextEnabled() const override;
     bool isBackEnabled() const override;

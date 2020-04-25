@@ -46,7 +46,7 @@
       </widget>
      </item>
      <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,1,2,1,0">
+      <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="0,0,2,0">
        <item>
         <spacer name="horizontalSpacer_3">
          <property name="orientation">
@@ -64,26 +64,23 @@
         </spacer>
        </item>
        <item>
-        <widget class="QLabel" name="label">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>1</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
+        <widget class="QLabel" name="languageIcon">
+         <property name="toolTip">
+          <string>Select application and system language</string>
          </property>
          <property name="text">
-          <string>&amp;Language:</string>
+          <string/>
          </property>
-         <property name="alignment">
-          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-         </property>
-         <property name="buddy">
-          <cstring>languageWidget</cstring>
+         <property name="pixmap">
+          <pixmap resource="welcome.qrc">:/welcome/language-icon-48px.png</pixmap>
          </property>
         </widget>
        </item>
        <item>
         <widget class="QComboBox" name="languageWidget">
+         <property name="toolTip">
+          <string>Select application and system language</string>
+         </property>
          <property name="sizePolicy">
           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
            <horstretch>2</horstretch>
@@ -91,19 +88,6 @@
           </sizepolicy>
          </property>
         </widget>
-       </item>
-       <item>
-        <spacer name="horizontalSpacer_5">
-         <property name="orientation">
-          <enum>Qt::Horizontal</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>40</width>
-           <height>20</height>
-          </size>
-         </property>
-        </spacer>
        </item>
        <item>
         <spacer name="horizontalSpacer_4">
@@ -151,7 +135,23 @@
           </widget>
          </item>
          <item>
+          <widget class="QPushButton" name="donateButton">
+           <property name="toolTip">
+            <string>Open donations website</string>
+           </property>
+           <property name="text">
+            <string>&amp;Donate</string>
+           </property>
+           <property name="flat">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QPushButton" name="supportButton">
+           <property name="toolTip">
+            <string>Open help and support website</string>
+           </property>
            <property name="text">
             <string>&amp;Support</string>
            </property>
@@ -162,6 +162,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="knownIssuesButton">
+           <property name="toolTip">
+            <string>Open issues and bug-tracking website</string>
+           </property>
            <property name="text">
             <string>&amp;Known issues</string>
            </property>
@@ -172,6 +175,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="releaseNotesButton">
+           <property name="toolTip">
+            <string>Open release notes website</string>
+           </property>
            <property name="text">
             <string>&amp;Release notes</string>
            </property>
@@ -217,6 +223,8 @@
    </item>
   </layout>
  </widget>
- <resources/>
+ <resources>
+  <include location="welcome.qrc"/>
+ </resources>
  <connections/>
 </ui>

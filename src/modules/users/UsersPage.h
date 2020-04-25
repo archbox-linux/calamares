@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2018, Adriaan de Groot <groot@kde.org>
  *
  *   Portions from the Manjaro Installation Framework
  *   by Roland Singer <roland@manjaro.org>
@@ -24,11 +24,12 @@
 #ifndef USERSPAGE_H
 #define USERSPAGE_H
 
-#include "Typedefs.h"
+#include "CheckPWQuality.h"
+#include "Job.h"
 
 #include <QWidget>
 
-#include <functional>
+class QLabel;
 
 namespace Ui
 {
@@ -44,15 +45,30 @@ public:
 
     bool isReady();
 
-    QList< Calamares::job_ptr > createJobs( const QStringList& defaultGroupsList );
+    Calamares::JobList createJobs( const QStringList& defaultGroupsList );
 
     void onActivate();
 
     void setWriteRootPassword( bool show );
+    void setPasswordCheckboxVisible( bool visible );
+    void setValidatePasswordDefault( bool checked );
     void setAutologinDefault( bool checked );
     void setReusePasswordDefault( bool checked );
 
+    /** @brief Process entries in the passwordRequirements config entry
+     *
+     * Called once for each item in the config entry, which should
+     * be a key-value pair. What makes sense as a value depends on
+     * the key. Supported keys are documented in users.conf.
+     */
     void addPasswordCheck( const QString& key, const QVariant& value );
+
+    ///@brief Hostname as entered / auto-filled
+    QString getHostname() const;
+    ///@brief Root password, depends on settings, may be empty
+    QString getRootPassword() const;
+    ///@brief User name and password
+    QPair< QString, QString > getUserPassword() const;
 
 protected slots:
     void onFullNameTextEdited( const QString& );
@@ -68,49 +84,20 @@ signals:
     void checkReady( bool );
 
 private:
+    /** @brief Is the password acceptable?
+     *
+     * Checks the two copies of the password and places error messages in the
+     * given QLabels. Returns true (and clears the error messages) if the
+     * password is acceptable.
+     */
+    bool checkPasswordAcceptance( const QString& pw1, const QString& pw2, QLabel* badge, QLabel* message );
+
+    void retranslate();
+
     Ui::Page_UserSetup* ui;
 
-    /**
-     * Support for (dynamic) checks on the password's validity.
-     * This can be used to implement password requirements like
-     * "at least 6 characters". Function addPasswordCheck()
-     * instantiates these and adds them to the list of checks.
-     */
-    class PasswordCheck
-    {
-    public:
-        /** Return true if the string is acceptable. */
-        using AcceptFunc = std::function<bool( const QString& )>;
-        using MessageFunc = std::function<QString()>;
-
-        /** Generate a @p message if @p filter returns true */
-        PasswordCheck( MessageFunc message, AcceptFunc filter );
-        /** Yields @p message if @p filter returns true */
-        PasswordCheck( const QString& message, AcceptFunc filter );
-        /** Null check, always returns empty */
-        PasswordCheck();
-
-        /** Applies this check to the given password string @p s
-         *  and returns an empty string if the password is ok
-         *  according to this filter. Returns a message describing
-         *  what is wrong if not.
-         */
-        QString filter( const QString& s ) const
-        {
-            return m_accept( s ) ? QString() : m_message();
-        }
-
-    private:
-        MessageFunc m_message;
-        AcceptFunc m_accept;
-    } ;
-    QVector<PasswordCheck> m_passwordChecks;
-
-    const QRegExp USERNAME_RX = QRegExp( "^[a-z_][a-z0-9_-]*[$]?$" );
-    const QRegExp HOSTNAME_RX = QRegExp( "^[a-zA-Z0-9][-a-zA-Z0-9_]*$" );
-    const int USERNAME_MAX_LENGTH = 31;
-    const int HOSTNAME_MIN_LENGTH = 2;
-    const int HOSTNAME_MAX_LENGTH = 63;
+    PasswordCheckList m_passwordChecks;
+    bool m_passwordChecksChanged = false;
 
     bool m_readyFullName;
     bool m_readyUsername;
@@ -123,4 +110,4 @@ private:
     bool m_writeRootPassword;
 };
 
-#endif // USERSPAGE_H
+#endif  // USERSPAGE_H

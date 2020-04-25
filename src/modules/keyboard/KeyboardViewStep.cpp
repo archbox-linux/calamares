@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *
@@ -18,12 +18,14 @@
 
 #include "KeyboardViewStep.h"
 
-#include "JobQueue.h"
-#include "GlobalStorage.h"
-
 #include "KeyboardPage.h"
 
-CALAMARES_PLUGIN_FACTORY_DEFINITION( KeyboardViewStepFactory, registerPlugin<KeyboardViewStep>(); )
+#include "GlobalStorage.h"
+#include "JobQueue.h"
+
+#include "utils/Variant.h"
+
+CALAMARES_PLUGIN_FACTORY_DEFINITION( KeyboardViewStepFactory, registerPlugin< KeyboardViewStep >(); )
 
 KeyboardViewStep::KeyboardViewStep( QObject* parent )
     : Calamares::ViewStep( parent )
@@ -40,7 +42,9 @@ KeyboardViewStep::KeyboardViewStep( QObject* parent )
 KeyboardViewStep::~KeyboardViewStep()
 {
     if ( m_widget && m_widget->parent() == nullptr )
+    {
         m_widget->deleteLater();
+    }
 }
 
 
@@ -63,19 +67,6 @@ KeyboardViewStep::widget()
 {
     return m_widget;
 }
-
-
-void
-KeyboardViewStep::next()
-{
-    //TODO: actually save those settings somewhere
-    emit done();
-}
-
-
-void
-KeyboardViewStep::back()
-{}
 
 
 bool
@@ -124,9 +115,7 @@ void
 KeyboardViewStep::onLeave()
 {
     m_widget->finalize();
-    m_jobs = m_widget->createJobs( m_xOrgConfFileName,
-                                   m_convertedKeymapPath,
-                                   m_writeEtcDefaultKeyboard );
+    m_jobs = m_widget->createJobs( m_xOrgConfFileName, m_convertedKeymapPath, m_writeEtcDefaultKeyboard );
     m_prettyStatus = m_widget->prettyStatus();
 }
 
@@ -134,34 +123,34 @@ KeyboardViewStep::onLeave()
 void
 KeyboardViewStep::setConfigurationMap( const QVariantMap& configurationMap )
 {
-    if ( configurationMap.contains( "xOrgConfFileName" ) &&
-         configurationMap.value( "xOrgConfFileName" ).type() == QVariant::String &&
-         !configurationMap.value( "xOrgConfFileName" ).toString().isEmpty() )
+    using namespace CalamaresUtils;
+
+    if ( configurationMap.contains( "xOrgConfFileName" )
+         && configurationMap.value( "xOrgConfFileName" ).type() == QVariant::String
+         && !getString( configurationMap, "xOrgConfFileName" ).isEmpty() )
     {
-        m_xOrgConfFileName = configurationMap.value( "xOrgConfFileName" )
-                                             .toString();
+        m_xOrgConfFileName = getString( configurationMap, "xOrgConfFileName" );
     }
     else
     {
         m_xOrgConfFileName = "00-keyboard.conf";
     }
 
-    if ( configurationMap.contains( "convertedKeymapPath" ) &&
-         configurationMap.value( "convertedKeymapPath" ).type() == QVariant::String &&
-         !configurationMap.value( "convertedKeymapPath" ).toString().isEmpty() )
+    if ( configurationMap.contains( "convertedKeymapPath" )
+         && configurationMap.value( "convertedKeymapPath" ).type() == QVariant::String
+         && !getString( configurationMap, "convertedKeymapPath" ).isEmpty() )
     {
-        m_convertedKeymapPath = configurationMap.value( "convertedKeymapPath" )
-                                                .toString();
+        m_convertedKeymapPath = getString( configurationMap, "convertedKeymapPath" );
     }
     else
     {
         m_convertedKeymapPath = QString();
     }
 
-    if ( configurationMap.contains( "writeEtcDefaultKeyboard" ) &&
-         configurationMap.value( "writeEtcDefaultKeyboard" ).type() == QVariant::Bool )
+    if ( configurationMap.contains( "writeEtcDefaultKeyboard" )
+         && configurationMap.value( "writeEtcDefaultKeyboard" ).type() == QVariant::Bool )
     {
-        m_writeEtcDefaultKeyboard = configurationMap.value( "writeEtcDefaultKeyboard" ).toBool();
+        m_writeEtcDefaultKeyboard = getBool( configurationMap, "writeEtcDefaultKeyboard", true );
     }
     else
     {

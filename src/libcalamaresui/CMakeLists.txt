@@ -1,44 +1,40 @@
-project( libcalamaresui CXX )
+# libcalamaresui is the GUI part of Calamares, which includes handling
+# view modules, view steps, widgets, and branding.
+
+# The UI libs use the non-UI library
+include_directories( ${CMAKE_SOURCE_DIR}/src/libcalamares ${CMAKE_BINARY_DIR}/src/libcalamares ${CMAKE_SOURCE_DIR} )
 
 set( calamaresui_SOURCES
     modulesystem/CppJobModule.cpp
-    modulesystem/Module.cpp
+    modulesystem/ModuleFactory.cpp
     modulesystem/ModuleManager.cpp
     modulesystem/ProcessJobModule.cpp
     modulesystem/ViewModule.cpp
 
     utils/CalamaresUtilsGui.cpp
-    utils/DebugWindow.cpp
     utils/ImageRegistry.cpp
-    utils/YamlUtils.cpp
+    utils/Paste.cpp
+    utils/Qml.cpp
 
-    utils/qjsonmodel.cpp
-    utils/qjsonitem.cpp
-
-    viewpages/AbstractPage.cpp
+    viewpages/BlankViewStep.cpp
+    viewpages/ExecutionViewStep.cpp
+    viewpages/QmlViewStep.cpp
     viewpages/ViewStep.cpp
 
     widgets/ClickableLabel.cpp
     widgets/FixedAspectRatioLabel.cpp
-    widgets/waitingspinnerwidget.cpp
     widgets/WaitingWidget.cpp
+    ${CMAKE_SOURCE_DIR}/3rdparty/waitingspinnerwidget.cpp
 
-    ExecutionViewStep.cpp
     Branding.cpp
-    Settings.cpp
     ViewManager.cpp
 )
 
 # Don't warn about third-party sources
 mark_thirdparty_code(
-    utils/ImageRegistry.cpp
-    utils/qjsonitem.cpp
-    utils/qjsonmodel.cpp
-    widgets/waitingspinnerwidget.cpp
-)
-
-set( calamaresui_UI
-    utils/DebugWindow.ui
+    ${CMAKE_SOURCE_DIR}/3rdparty/qjsonitem.cpp
+    ${CMAKE_SOURCE_DIR}/3rdparty/qjsonmodel.cpp
+    ${CMAKE_SOURCE_DIR}/3rdparty/waitingspinnerwidget.cpp
 )
 
 if( WITH_PYTHON )
@@ -49,7 +45,8 @@ endif()
 
 if( WITH_PYTHONQT )
     include_directories(${PYTHON_INCLUDE_DIRS})
-    include_directories(${PYTHONQT_INCLUDE_DIR})
+    # *_DIRS because we also use extensions
+    include_directories(${PYTHONQT_INCLUDE_DIRS})
 
     list( APPEND calamaresui_SOURCES
         modulesystem/PythonQtViewModule.cpp
@@ -59,8 +56,7 @@ if( WITH_PYTHONQT )
         viewpages/PythonQtGlobalStorageWrapper.cpp
         viewpages/PythonQtUtilsWrapper.cpp
     )
-    set( OPTIONAL_PRIVATE_LIBRARIES
-        ${OPTIONAL_PRIVATE_LIBRARIES}
+    set( OPTIONAL_PYTHON_LIBRARIES
         ${PYTHON_LIBRARIES}
         ${PYTHONQT_LIBRARIES}
     )
@@ -68,14 +64,17 @@ endif()
 
 calamares_add_library( calamaresui
     SOURCES ${calamaresui_SOURCES}
-    UI ${calamaresui_UI}
     EXPORT_MACRO UIDLLEXPORT_PRO
     LINK_PRIVATE_LIBRARIES
-        ${YAMLCPP_LIBRARY}
+        ${OPTIONAL_PYTHON_LIBRARIES}
+    LINK_LIBRARIES
         Qt5::Svg
         Qt5::QuickWidgets
-        ${OPTIONAL_PRIVATE_LIBRARIES}
     RESOURCES libcalamaresui.qrc
     EXPORT CalamaresLibraryDepends
     VERSION ${CALAMARES_VERSION_SHORT}
 )
+
+if ( KF5CoreAddons_FOUND AND KF5CoreAddons_VERSION VERSION_GREATER_EQUAL 5.58 )
+    target_compile_definitions( calamaresui PRIVATE WITH_KOSRelease )
+endif()

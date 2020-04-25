@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# === This file is part of Calamares - <http://github.com/calamares> ===
+# === This file is part of Calamares - <https://github.com/calamares> ===
 #
 #   Copyright 2016, Artoo <artoo@manjaro.org>
 #   Copyright 2017, Alf Gaida <agaida@siduction.org>
+#   Copyright 2018, Gabriel Craciunescu <crazy@frugalware.org>
+#   Copyright 2019, Adriaan de Groot <groot@kde.org>
 #
 #   Calamares is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -23,6 +25,16 @@ import libcalamares
 
 from libcalamares.utils import debug, target_env_call
 
+import gettext
+_ = gettext.translation("calamares-python",
+                        localedir=libcalamares.utils.gettext_path(),
+                        languages=libcalamares.utils.gettext_languages(),
+                        fallback=True).gettext
+
+
+def pretty_name():
+    return _("Configure Plymouth theme")
+
 
 class PlymouthController:
 
@@ -40,13 +52,8 @@ class PlymouthController:
                          "/etc/plymouth/plymouthd.conf"])
 
     def detect(self):
-        isPlymouth = target_env_call(["which", "plymouth"])
+        isPlymouth = target_env_call(["sh", "-c", "which plymouth"])
         debug("which plymouth exit code: {!s}".format(isPlymouth))
-
-        if isPlymouth == 0:
-            libcalamares.globalstorage.insert("hasPlymouth", True)
-        else:
-            libcalamares.globalstorage.insert("hasPlymouth", False)
 
         return isPlymouth
 

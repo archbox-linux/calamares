@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2016, Teo Mrnjavac <teo@kde.org>
  *
@@ -19,10 +19,12 @@
 #include "PartitionSplitterWidget.h"
 
 #include "core/ColorUtils.h"
-#include "core/PartitionIterator.h"
 #include "core/KPMHelpers.h"
 
+#include "partition/PartitionIterator.h"
+#include "partition/PartitionQuery.h"
 #include "utils/Logger.h"
+
 #include "utils/CalamaresUtilsGui.h"
 
 #include <kpmcore/core/device.h>
@@ -32,6 +34,8 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QStyleOption>
+
+using CalamaresUtils::Partition::PartitionIterator;
 
 static const int VIEW_HEIGHT = qMax( CalamaresUtils::defaultFontHeight() + 8, // wins out with big fonts
                                      int( CalamaresUtils::defaultFontHeight() * 0.6 ) + 22 ); // wins out with small fonts
@@ -66,7 +70,7 @@ PartitionSplitterWidget::init( Device* dev, bool drawNestedPartitions )
         PartitionSplitterItem newItem = {
             ( *it )->partitionPath(),
             ColorUtils::colorForPartition( *it ),
-            KPMHelpers::isPartitionFreeSpace( *it ),
+            CalamaresUtils::Partition::isPartitionFreeSpace( *it ),
             ( *it )->capacity(),
             PartitionSplitterItem::Normal,
             {}
@@ -286,7 +290,7 @@ PartitionSplitterWidget::minimumSizeHint() const
 void
 PartitionSplitterWidget::paintEvent( QPaintEvent* event )
 {
-    Q_UNUSED( event );
+    Q_UNUSED( event )
 
     QPainter painter( this );
     painter.fillRect( rect(), palette().window() );
@@ -401,7 +405,7 @@ PartitionSplitterWidget::mouseMoveEvent( QMouseEvent* event )
 void
 PartitionSplitterWidget::mouseReleaseEvent( QMouseEvent* event )
 {
-    Q_UNUSED( event );
+    Q_UNUSED( event )
 
     m_resizing = false;
 }

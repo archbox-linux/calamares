@@ -1,7 +1,8 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Aurélien Gâteau <agateau@kde.org>
  *   Copyright 2015, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -19,10 +20,12 @@
 #ifndef BOOTLOADERMODEL_H
 #define BOOTLOADERMODEL_H
 
-#include <QStandardItemModel>
 #include <QList>
+#include <QMutex>
+#include <QStandardItemModel>
 
 class Device;
+class QComboBox;
 
 /**
  * This model contains one entry for each device MBR plus one entry for the
@@ -51,10 +54,30 @@ public:
 
     QVariant data( const QModelIndex& index, int role = Qt::DisplayRole ) const override;
 
+    using DeviceList = QList< Device* >;
+
 private:
-    QList< Device* > m_devices;
+    DeviceList m_devices;
+    mutable QMutex m_lock;
 
     void createMbrItems();
+    void updateInternal();
 };
 
+namespace Calamares
+{
+/** @brief Returns the row number of boot-loader @p path (e.g. /dev/sda)
+ *
+ * Assuming the @p model is a BootLoaderModel, will return a row number
+ * in the model. Returns -1 otherwise.
+ */
+int findBootloader( const QAbstractItemModel* model, const QString& path );
+
+/** @brief Tries to set @p path as selected item in @p combo
+ *
+ * Matches a boot-loader install path (e.g. /dev/sda) with a model
+ * row and sets that as the current row.
+ */
+void restoreSelectedBootLoader( QComboBox& combo, const QString& path );
+}  // namespace Calamares
 #endif /* BOOTLOADERMODEL_H */

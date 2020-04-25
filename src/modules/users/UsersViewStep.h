@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014-2015, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2017, Adriaan de Groot <groot@kde.org>
@@ -20,13 +20,13 @@
 #ifndef USERSPAGEPLUGIN_H
 #define USERSPAGEPLUGIN_H
 
+#include "SetHostNameJob.h"
+
+#include "DllMacro.h"
+#include "utils/PluginFactory.h"
+#include "viewpages/ViewStep.h"
+
 #include <QObject>
-
-#include <utils/PluginFactory.h>
-#include <viewpages/ViewStep.h>
-
-#include <PluginDllMacro.h>
-
 #include <QVariant>
 
 class UsersPage;
@@ -42,9 +42,6 @@ public:
     QString prettyName() const override;
 
     QWidget* widget() override;
-
-    void next() override;
-    void back() override;
 
     bool isNextEnabled() const override;
     bool isBackEnabled() const override;
@@ -64,8 +61,9 @@ private:
     QList< Calamares::job_ptr > m_jobs;
 
     QStringList m_defaultGroups;
+    SetHostNameJob::Actions m_actions;
 };
 
 CALAMARES_PLUGIN_FACTORY_DECLARATION( UsersViewStepFactory )
 
-#endif // USERSPAGEPLUGIN_H
+#endif  // USERSPAGEPLUGIN_H

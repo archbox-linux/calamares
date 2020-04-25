@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
  *   Copyright 2016, Kevin Kofler <kevin.kofler@chello.at>
@@ -19,27 +19,28 @@
 
 #include "CppJobModule.h"
 
-#include "utils/PluginFactory.h"
-#include "utils/Logger.h"
 #include "CppJob.h"
+#include "utils/Logger.h"
+#include "utils/PluginFactory.h"
 
 #include <QDir>
 #include <QPluginLoader>
 
-namespace Calamares {
+namespace Calamares
+{
 
 
 Module::Type
 CppJobModule::type() const
 {
-    return Job;
+    return Module::Type::Job;
 }
 
 
 Module::Interface
 CppJobModule::interface() const
 {
-    return QtPluginInterface;
+    return Module::Interface::QtPlugin;
 }
 
 
@@ -48,44 +49,43 @@ CppJobModule::loadSelf()
 {
     if ( m_loader )
     {
-        PluginFactory* pf = qobject_cast< PluginFactory* >( m_loader->instance() );
+        CalamaresPluginFactory* pf = qobject_cast< CalamaresPluginFactory* >( m_loader->instance() );
         if ( !pf )
         {
             cDebug() << Q_FUNC_INFO << m_loader->errorString();
             return;
         }
 
-        CppJob *cppJob = pf->create< Calamares::CppJob >();
+        CppJob* cppJob = pf->create< Calamares::CppJob >();
         if ( !cppJob )
         {
             cDebug() << Q_FUNC_INFO << m_loader->errorString();
             return;
         }
-//        cDebug() << "CppJobModule loading self for instance" << instanceKey()
-//                 << "\nCppJobModule at address" << this
-//                 << "\nCalamares::PluginFactory at address" << pf
-//                 << "\nCppJob at address" << cppJob;
+        //        cDebug() << "CppJobModule loading self for instance" << instanceKey()
+        //                 << "\nCppJobModule at address" << this
+        //                 << "\nCalamares::PluginFactory at address" << pf
+        //                 << "\nCppJob at address" << cppJob;
 
         cppJob->setModuleInstanceKey( instanceKey() );
         cppJob->setConfigurationMap( m_configurationMap );
-        m_job = Calamares::job_ptr( static_cast< Calamares::Job * >( cppJob ) );
+        m_job = Calamares::job_ptr( static_cast< Calamares::Job* >( cppJob ) );
         m_loaded = true;
         cDebug() << "CppJobModule" << instanceKey() << "loading complete.";
     }
 }
 
 
-QList< job_ptr >
+JobList
 CppJobModule::jobs() const
 {
-    return QList< job_ptr >() << m_job;
+    return JobList() << m_job;
 }
 
 
 void
 CppJobModule::initFrom( const QVariantMap& moduleDescriptor )
 {
-    Module::initFrom( moduleDescriptor );
     QDir directory( location() );
     QString load;
     if ( !moduleDescriptor.value( "load" ).toString().isEmpty() )
@@ -96,7 +96,7 @@ CppJobModule::initFrom( const QVariantMap& moduleDescriptor )
     // If a load path is not specified, we look for a plugin to load in the directory.
     if ( load.isEmpty() || !QLibrary::isLibrary( load ) )
     {
-        const QStringList ls = directory.entryList( QStringList{ "*.so" } );
+        const QStringList ls = directory.entryList( QStringList { "*.so" } );
         if ( !ls.isEmpty() )
         {
             for ( QString entry : ls )
@@ -125,4 +125,4 @@ CppJobModule::~CppJobModule()
     delete m_loader;
 }
 
-} // namespace Calamares
+}  // namespace Calamares

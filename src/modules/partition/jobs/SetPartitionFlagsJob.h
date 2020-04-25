@@ -1,4 +1,4 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2016, Teo Mrnjavac <teo@kde.org>
  *
@@ -22,7 +22,7 @@
 #ifndef SETPARTITIONFLAGSJOB_H
 #define SETPARTITIONFLAGSJOB_H
 
-#include <jobs/PartitionJob.h>
+#include "PartitionJob.h"
 
 #include <kpmcore/core/partitiontable.h>
 
@@ -49,4 +49,4 @@ private:
     PartitionTable::Flags m_flags;
 };
 
-#endif // SETPARTITIONFLAGSJOB_H
+#endif  // SETPARTITIONFLAGSJOB_H

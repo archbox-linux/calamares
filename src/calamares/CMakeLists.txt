@@ -1,62 +1,52 @@
-project( calamares )
-
-add_definitions( -DUIDLLEXPORT_PRO )
-
-if( NOT CMAKE_BUILD_TYPE STREQUAL "Release" )
-    message( "Building in debug mode, enabling all debug updates" )
-endif()
-
 set( calamaresSources
     main.cpp
     CalamaresApplication.cpp
     CalamaresWindow.cpp
 
-    progresstree/ProgressTreeDelegate.cpp
-    progresstree/ProgressTreeItem.cpp
-    progresstree/ProgressTreeModel.cpp
-    progresstree/ProgressTreeView.cpp
-    progresstree/ViewStepItem.cpp
-)
+    DebugWindow.cpp
+    VariantModel.cpp
 
-set( calamaresUi
-    #nothing to do here
+    progresstree/ProgressTreeDelegate.cpp
+    progresstree/ProgressTreeView.cpp
 )
 
 include_directories(
-    .
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ${CMAKE_CURRENT_BINARY_DIR}/../libcalamares
-
-    ../libcalamares
-    ../libcalamaresui
+    ${CMAKE_SOURCE_DIR}/src/libcalamares
+    ${CMAKE_SOURCE_DIR}/src/libcalamaresui
+    ${CMAKE_BINARY_DIR}/src/libcalamares
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
-
-include( GNUInstallDirs )
-
-qt5_wrap_ui( calamaresUi_H ${calamaresUi} )
 
 # Translations
 include( CalamaresAddTranslations )
 add_calamares_translations( ${CALAMARES_TRANSLATION_LANGUAGES} )
+qt5_add_resources( calamaresRc calamares.qrc )
 
-set( final_src ${calamaresUi_H} ${calamaresSources} ${calamaresRc} ${trans_outfile} )
-
-add_executable( calamares_bin ${final_src} )
-SET_TARGET_PROPERTIES(calamares_bin
+add_executable( calamares_bin ${calamaresSources} ${calamaresRc} ${trans_outfile} )
+target_include_directories( calamares_bin PRIVATE ${CMAKE_SOURCE_DIR} )
+set_target_properties(calamares_bin
     PROPERTIES
-        AUTOMOC TRUE
         ENABLE_EXPORTS TRUE
         RUNTIME_OUTPUT_NAME calamares
 )
+calamares_automoc( calamares_bin )
+calamares_autouic( calamares_bin )
 
 target_link_libraries( calamares_bin
     PRIVATE
-        ${CALAMARES_LIBRARIES}
+        calamares
         calamaresui
         Qt5::Core
         Qt5::Widgets
-        ${LINK_LIBRARIES}
+        KF5::CoreAddons
 )
+if( WITH_KF5Crash )
+    target_link_libraries( calamares_bin
+        PRIVATE
+            KF5::Crash
+    )
+    target_compile_definitions( calamares_bin PRIVATE WITH_KF5Crash )
+endif()
 
 install( TARGETS calamares_bin
     BUNDLE DESTINATION .
@@ -67,3 +57,9 @@ install( FILES ${CMAKE_SOURCE_DIR}/data/images/squid.svg
     RENAME calamares.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
 )
+
+if( BUILD_TESTING )
+    add_executable( loadmodule testmain.cpp )
+    target_link_libraries( loadmodule PRIVATE Qt5::Core Qt5::Widgets calamares calamaresui )
+    # Don't install, it's just for enable_testing
+endif()

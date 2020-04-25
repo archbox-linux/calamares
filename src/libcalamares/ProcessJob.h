@@ -1,7 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
- *   Copyright 2017, Adriaan de Groot <groot@kde.org>
+ *   Copyright 2017-2019, Adriaan de Groot <groot@kde.org>
  *
  *   Calamares is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -22,7 +22,10 @@
 
 #include "Job.h"
 
-namespace Calamares {
+#include <chrono>
+
+namespace Calamares
+{
 
 class ProcessJob : public Job
 {
@@ -31,7 +34,7 @@ public:
     explicit ProcessJob( const QString& command,
                          const QString& workingPath,
                          bool runInChroot = false,
-                         int secondsTimeout = 30,
+                         std::chrono::seconds secondsTimeout = std::chrono::seconds( 30 ),
                          QObject* parent = nullptr );
     virtual ~ProcessJob() override;
 
@@ -40,17 +43,12 @@ public:
     JobResult exec() override;
 
 private:
-    int callOutput( const QString& command,
-                    QString& output,
-                    const QString& workingPath = QString(),
-                    const QString& stdInput = QString(),
-                    int timeoutSec = 0 );
     QString m_command;
     QString m_workingPath;
     bool m_runInChroot;
-    int m_timeoutSec;
+    std::chrono::seconds m_timeoutSec;
 };
 
-} // namespace Calamares
+}  // namespace Calamares
 
-#endif // CALAMARES_PROCESSJOB_H
+#endif  // CALAMARES_PROCESSJOB_H

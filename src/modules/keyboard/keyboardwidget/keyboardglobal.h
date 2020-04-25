@@ -1,6 +1,7 @@
-/* === This file is part of Calamares - <http://github.com/calamares> ===
+/* === This file is part of Calamares - <https://github.com/calamares> ===
  *
  *   Copyright 2014, Teo Mrnjavac <teo@kde.org>
+ *   Copyright 2017, 2019, Adriaan de Groot <groot@kde.org>
  *
  *   Originally from the Manjaro Installation Framework
  *   by Roland Singer <roland@manjaro.org>
@@ -34,8 +35,6 @@
 #include <QRegExp>
 #include <QDebug>
 
-#define XKB_FILE "/usr/share/X11/xkb/rules/base.lst"
-
 class KeyboardGlobal
 {
 public:
@@ -44,12 +43,11 @@ public:
         QMap< QString, QString > variants;
     };
 
-    static QMap< QString, KeyboardInfo > getKeyboardLayouts();
-    static QMap< QString, QString > getKeyboardModels();
+    using LayoutsMap = QMap< QString, KeyboardInfo >;
+    using ModelsMap = QMap< QString, QString >;
 
-private:
-    static QMap< QString, QString > parseKeyboardModels(QString filepath);
-    static QMap< QString, KeyboardInfo > parseKeyboardLayouts(QString filepath);
+    static LayoutsMap getKeyboardLayouts();
+    static ModelsMap getKeyboardModels();
 };
 
 #endif // KEYBOARDGLOBAL_H
