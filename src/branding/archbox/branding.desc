@@ -7,7 +7,7 @@ strings:
     version:             2018-02-11
     shortVersion:        20180211
     versionedName:       Archbox Linux 2018-02-11 "Calamari"
-    shortVersionedName:  Generic 1.0
+    shortVersionedName:  Archbox 2018-02-11
     bootloaderEntryName: Arch Linux
     productUrl:          http://archbox-linux.github.io/
 
