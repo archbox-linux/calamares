@@ -22,6 +22,7 @@
 #include "CalamaresWindow.h"
 
 #include "Branding.h"
+#include "CalamaresConfig.h"
 #include "DebugWindow.h"
 #include "Settings.h"
 #include "ViewManager.h"
@@ -38,7 +39,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QLabel>
+#ifdef WITH_QML
+#include <QQuickItem>
 #include <QQuickWidget>
+#endif
 #include <QTreeView>
 
 static inline int
@@ -61,11 +65,11 @@ windowDimensionToPixels( const Calamares::Branding::WindowDimension& u )
 
 
 QWidget*
-CalamaresWindow::getWidgetSidebar( int desiredWidth )
+CalamaresWindow::getWidgetSidebar( QWidget* parent, int desiredWidth )
 {
     const Calamares::Branding* const branding = Calamares::Branding::instance();
 
-    QWidget* sideBox = new QWidget( this );
+    QWidget* sideBox = new QWidget( parent );
     sideBox->setObjectName( "sidebarApp" );
 
     QBoxLayout* sideLayout = new QVBoxLayout;
@@ -131,18 +135,6 @@ CalamaresWindow::getWidgetSidebar( int desiredWidth )
     return sideBox;
 }
 
-QWidget*
-CalamaresWindow::getQmlSidebar( int )
-{
-    CalamaresUtils::registerCalamaresModels();
-    QQuickWidget* w = new QQuickWidget( this );
-    w->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
-    w->setResizeMode( QQuickWidget::SizeRootObjectToView );
-    w->setSource( QUrl(
-        CalamaresUtils::searchQmlFile( CalamaresUtils::QmlSearch::Both, QStringLiteral( "calamares-sidebar" ) ) ) );
-    return w;
-}
-
 /** @brief Get a button-sized icon. */
 static inline QPixmap
 getButtonIcon( const QString& name )
@@ -161,9 +153,9 @@ setButtonIcon( QPushButton* button, const QString& name )
 }
 
 QWidget*
-CalamaresWindow::getWidgetNavigation()
+CalamaresWindow::getWidgetNavigation( QWidget* parent )
 {
-    QWidget* navigation = new QWidget( this );
+    QWidget* navigation = new QWidget( parent );
     QBoxLayout* bottomLayout = new QHBoxLayout;
     bottomLayout->addStretch();
 
@@ -212,18 +204,52 @@ CalamaresWindow::getWidgetNavigation()
     return navigation;
 }
 
+#ifdef WITH_QML
 QWidget*
-CalamaresWindow::getQmlNavigation()
+CalamaresWindow::getQmlSidebar( QWidget* parent, int )
 {
-    CalamaresUtils::registerCalamaresModels();
-    QQuickWidget* w = new QQuickWidget( this );
+    CalamaresUtils::registerQmlModels();
+    QQuickWidget* w = new QQuickWidget( parent );
+    w->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
+    w->setResizeMode( QQuickWidget::SizeRootObjectToView );
+    w->setSource( QUrl(
+        CalamaresUtils::searchQmlFile( CalamaresUtils::QmlSearch::Both, QStringLiteral( "calamares-sidebar" ) ) ) );
+    return w;
+}
+
+QWidget*
+CalamaresWindow::getQmlNavigation( QWidget* parent )
+{
+    CalamaresUtils::registerQmlModels();
+    QQuickWidget* w = new QQuickWidget( parent );
     w->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
     w->setResizeMode( QQuickWidget::SizeRootObjectToView );
     w->setSource( QUrl(
         CalamaresUtils::searchQmlFile( CalamaresUtils::QmlSearch::Both, QStringLiteral( "calamares-navigation" ) ) ) );
-    w->setMinimumHeight( 30 );  // matchine the default widgets version
+
+    // If the QML itself sets a height, use that, otherwise go to 48 pixels
+    // which seems to match what the widget navigation would use for height
+    // (with *my* specific screen, style, etc. so YMMV).
+    qreal minimumHeight = qBound( qreal( 16 ), w->rootObject() ? w->rootObject()->height() : 48, qreal( 64 ) );
+    w->setMinimumHeight( int( minimumHeight ) );
+
     return w;
 }
+#else
+// Bogus to keep the linker happy
+QWidget*
+CalamaresWindow::getQmlSidebar( QWidget*, int )
+{
+    return nullptr;
+}
+QWidget*
+CalamaresWindow::getQmlNavigation( QWidget* )
+{
+    return nullptr;
+}
+
+
+#endif
 
 /**@brief Picks one of two methods to call
  *
@@ -234,17 +260,23 @@ template < typename widgetMaker, typename... args >
 QWidget*
 flavoredWidget( Calamares::Branding::PanelFlavor flavor,
                 CalamaresWindow* w,
+                QWidget* parent,
                 widgetMaker widget,
-                widgetMaker qml,
+                widgetMaker qml,  // Only if WITH_QML is on
                 args... a )
 {
+#ifndef WITH_QML
+    Q_UNUSED( qml )
+#endif
     // Member-function calling syntax is (object.*member)(args)
     switch ( flavor )
     {
     case Calamares::Branding::PanelFlavor::Widget:
-        return ( w->*widget )( a... );
+        return ( w->*widget )( parent, a... );
+#ifdef WITH_QML
     case Calamares::Branding::PanelFlavor::Qml:
-        return ( w->*qml )( a... );
+        return ( w->*qml )( parent, a... );
+#endif
     case Calamares::Branding::PanelFlavor::None:
         return nullptr;
     }
@@ -276,11 +308,13 @@ CalamaresWindow::CalamaresWindow( QWidget* parent )
         setWindowFlag( Qt::WindowCloseButtonHint, false );
     }
 
-    CALAMARES_RETRANSLATE( setWindowTitle( Calamares::Settings::instance()->isSetupMode()
-                                               ? tr( "%1 Setup Program" ).arg( *Calamares::Branding::ProductName )
-                                               : tr( "%1 Installer" ).arg( *Calamares::Branding::ProductName ) ); )
+    CALAMARES_RETRANSLATE( const auto* branding = Calamares::Branding::instance();
+                           setWindowTitle( Calamares::Settings::instance()->isSetupMode()
+                                               ? tr( "%1 Setup Program" ).arg( branding->productName() )
+                                               : tr( "%1 Installer" ).arg( branding->productName() ) ); )
 
     const Calamares::Branding* const branding = Calamares::Branding::instance();
+    using ImageEntry = Calamares::Branding::ImageEntry;
 
     using CalamaresUtils::windowMinimumHeight;
     using CalamaresUtils::windowMinimumWidth;
@@ -307,7 +341,23 @@ CalamaresWindow::CalamaresWindow( QWidget* parent )
     cDebug() << Logger::SubEntry << "Proposed window size:" << w << h;
     resize( w, h );
 
-    m_viewManager = Calamares::ViewManager::instance( this );
+    QWidget* baseWidget = this;
+    if ( !( branding->imagePath( ImageEntry::ProductWallpaper ).isEmpty() ) )
+    {
+        QWidget* label = new QWidget( this );
+        QVBoxLayout* l = new QVBoxLayout;
+        CalamaresUtils::unmarginLayout( l );
+        l->addWidget( label );
+        setLayout( l );
+        label->setObjectName( "backgroundWidget" );
+        label->setStyleSheet(
+            QStringLiteral( "#backgroundWidget { background-image: url(%1); background-repeat: repeat-xy; }" )
+                .arg( branding->imagePath( ImageEntry::ProductWallpaper ) ) );
+
+        baseWidget = label;
+    }
+
+    m_viewManager = Calamares::ViewManager::instance( baseWidget );
     if ( branding->windowExpands() )
     {
         connect( m_viewManager, &Calamares::ViewManager::ensureSize, this, &CalamaresWindow::ensureSize );
@@ -328,11 +378,15 @@ CalamaresWindow::CalamaresWindow( QWidget* parent )
     QWidget* sideBox = flavoredWidget(
         branding->sidebarFlavor(),
         this,
+        baseWidget,
         &CalamaresWindow::getWidgetSidebar,
         &CalamaresWindow::getQmlSidebar,
         qBound( 100, CalamaresUtils::defaultFontHeight() * 12, w < windowPreferredWidth ? 100 : 190 ) );
-    QWidget* navigation = flavoredWidget(
-        branding->navigationFlavor(), this, &CalamaresWindow::getWidgetNavigation, &CalamaresWindow::getQmlNavigation );
+    QWidget* navigation = flavoredWidget( branding->navigationFlavor(),
+                                          this,
+                                          baseWidget,
+                                          &CalamaresWindow::getWidgetNavigation,
+                                          &CalamaresWindow::getQmlNavigation );
 
     // Build up the contentsLayout (a VBox) top-to-bottom
     // .. note that the bottom is mirrored wrt. the top
@@ -349,9 +403,17 @@ CalamaresWindow::CalamaresWindow( QWidget* parent )
     insertIf( mainLayout, PanelSide::Right, navigation, branding->navigationSide() );
     insertIf( mainLayout, PanelSide::Right, sideBox, branding->sidebarSide() );
 
+    // layout->count() returns number of things in it; above we have put
+    // at **least** the central widget, which comes from the view manager,
+    // both vertically and horizontally -- so if there's a panel along
+    // either axis, the count in that axis will be > 1.
+    m_viewManager->setPanelSides(
+        ( contentsLayout->count() > 1 ? Qt::Orientations( Qt::Horizontal ) : Qt::Orientations() )
+        | ( mainLayout->count() > 1 ? Qt::Orientations( Qt::Vertical ) : Qt::Orientations() ) );
+
     CalamaresUtils::unmarginLayout( mainLayout );
     CalamaresUtils::unmarginLayout( contentsLayout );
-    setLayout( mainLayout );
+    baseWidget->setLayout( mainLayout );
     setStyleSheet( Calamares::Branding::instance()->stylesheet() );
 }
 

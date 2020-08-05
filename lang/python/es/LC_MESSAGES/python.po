@@ -9,15 +9,16 @@
 # Guido Grasso <cuquiman97@gmail.com>, 2018
 # Adolfo Jayme-Barrientos, 2019
 # Miguel Mayol <mitcoes@gmail.com>, 2020
+# Pier Jose Gotta Perez <piegope@protonmail.com>, 2020
 # 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-15 13:39+0200\n"
+"POT-Creation-Date: 2020-06-18 15:42+0200\n"
 "PO-Revision-Date: 2017-08-09 10:34+0000\n"
-"Last-Translator: Miguel Mayol <mitcoes@gmail.com>, 2020\n"
+"Last-Translator: Pier Jose Gotta Perez <piegope@protonmail.com>, 2020\n"
 "Language-Team: Spanish (https://www.transifex.com/calamares/teams/20061/es/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -33,10 +34,10 @@ msgstr "Configure GRUB - menú de arranque multisistema -"
 msgid "Mounting partitions."
 msgstr "Montando particiones"
 
-#: src/modules/mount/main.py:145 src/modules/initcpiocfg/main.py:205
+#: src/modules/mount/main.py:150 src/modules/initcpiocfg/main.py:205
 #: src/modules/initcpiocfg/main.py:209
 #: src/modules/luksopenswaphookcfg/main.py:95
-#: src/modules/luksopenswaphookcfg/main.py:99 src/modules/rawfs/main.py:171
+#: src/modules/luksopenswaphookcfg/main.py:99 src/modules/rawfs/main.py:173
 #: src/modules/initramfscfg/main.py:94 src/modules/initramfscfg/main.py:98
 #: src/modules/openrcdmcryptcfg/main.py:78
 #: src/modules/openrcdmcryptcfg/main.py:82 src/modules/fstab/main.py:332
@@ -45,8 +46,8 @@ msgstr "Montando particiones"
 msgid "Configuration Error"
 msgstr "Error de configuración"
 
-#: src/modules/mount/main.py:146 src/modules/initcpiocfg/main.py:206
-#: src/modules/luksopenswaphookcfg/main.py:96 src/modules/rawfs/main.py:172
+#: src/modules/mount/main.py:151 src/modules/initcpiocfg/main.py:206
+#: src/modules/luksopenswaphookcfg/main.py:96 src/modules/rawfs/main.py:174
 #: src/modules/initramfscfg/main.py:95 src/modules/openrcdmcryptcfg/main.py:79
 #: src/modules/fstab/main.py:333
 msgid "No partitions are defined for <pre>{!s}</pre> to use."
@@ -107,49 +108,51 @@ msgstr "Falló la sincronización  mediante rsync  con el código de error {}."
 
 #: src/modules/unpackfs/main.py:302
 msgid "Unpacking image {}/{}, file {}/{}"
-msgstr ""
+msgstr "Desempaquetando la imagen {}/{}, archivo {}/{}"
 
 #: src/modules/unpackfs/main.py:317
 msgid "Starting to unpack {}"
-msgstr ""
+msgstr "Iniciando el desempaquetado {}"
 
-#: src/modules/unpackfs/main.py:326 src/modules/unpackfs/main.py:432
+#: src/modules/unpackfs/main.py:326 src/modules/unpackfs/main.py:448
 msgid "Failed to unpack image \"{}\""
 msgstr "No se pudo desempaquetar la imagen «{}»"
 
-#: src/modules/unpackfs/main.py:399
+#: src/modules/unpackfs/main.py:415
 msgid "No mount point for root partition"
 msgstr ""
 "No especificó un punto de montaje para la  partición raíz - / o root -"
 
-#: src/modules/unpackfs/main.py:400
+#: src/modules/unpackfs/main.py:416
 msgid "globalstorage does not contain a \"rootMountPoint\" key, doing nothing"
 msgstr ""
 "No se hace nada porque el almacenamiento no contiene una clave de  "
 "\"rootMountPoint\" punto de montaje para la raíz."
 
-#: src/modules/unpackfs/main.py:405
+#: src/modules/unpackfs/main.py:421
 msgid "Bad mount point for root partition"
 msgstr "Punto de montaje no válido para una partición raíz,"
 
-#: src/modules/unpackfs/main.py:406
+#: src/modules/unpackfs/main.py:422
 msgid "rootMountPoint is \"{}\", which does not exist, doing nothing"
 msgstr "Como el punto de montaje raíz es \"{}\", y no existe, no se hace nada"
 
-#: src/modules/unpackfs/main.py:422 src/modules/unpackfs/main.py:426
-#: src/modules/unpackfs/main.py:446
+#: src/modules/unpackfs/main.py:438 src/modules/unpackfs/main.py:442
+#: src/modules/unpackfs/main.py:462
 msgid "Bad unsquash configuration"
 msgstr "Configuración de \"unsquash\" no válida"
 
-#: src/modules/unpackfs/main.py:423
+#: src/modules/unpackfs/main.py:439
 msgid "The filesystem for \"{}\" ({}) is not supported by your current kernel"
 msgstr ""
+"El sistema de archivos para \"{}\" ({}) no es compatible con su kernel "
+"actual"
 
-#: src/modules/unpackfs/main.py:427
+#: src/modules/unpackfs/main.py:443
 msgid "The source filesystem \"{}\" does not exist"
 msgstr "El sistema de archivos de origen  \"{}\" no existe"
 
-#: src/modules/unpackfs/main.py:433
+#: src/modules/unpackfs/main.py:449
 msgid ""
 "Failed to find unsquashfs, make sure you have the squashfs-tools package "
 "installed"
@@ -157,57 +160,57 @@ msgstr ""
 "No se encontró unsquashfs; cerciórese de que tenga instalado el paquete "
 "squashfs-tools"
 
-#: src/modules/unpackfs/main.py:447
+#: src/modules/unpackfs/main.py:463
 msgid "The destination \"{}\" in the target system is not a directory"
 msgstr "El destino \"{}\" en el sistema escogido  no es una carpeta"
 
-#: src/modules/displaymanager/main.py:515
+#: src/modules/displaymanager/main.py:523
 msgid "Cannot write KDM configuration file"
 msgstr "No se puede escribir el archivo de configuración KDM"
 
-#: src/modules/displaymanager/main.py:516
+#: src/modules/displaymanager/main.py:524
 msgid "KDM config file {!s} does not exist"
 msgstr "El archivo de configuración {!s} de KDM no existe"
 
-#: src/modules/displaymanager/main.py:577
+#: src/modules/displaymanager/main.py:585
 msgid "Cannot write LXDM configuration file"
 msgstr "No se puede escribir el archivo de configuración LXDM"
 
-#: src/modules/displaymanager/main.py:578
+#: src/modules/displaymanager/main.py:586
 msgid "LXDM config file {!s} does not exist"
 msgstr "El archivo de configuracion {!s} de LXDM no existe"
 
-#: src/modules/displaymanager/main.py:661
+#: src/modules/displaymanager/main.py:669
 msgid "Cannot write LightDM configuration file"
 msgstr "No se puede escribir el archivo de configuración de LightDM"
 
-#: src/modules/displaymanager/main.py:662
+#: src/modules/displaymanager/main.py:670
 msgid "LightDM config file {!s} does not exist"
 msgstr "El archivo de configuración {!s} de LightDM no existe"
 
-#: src/modules/displaymanager/main.py:736
+#: src/modules/displaymanager/main.py:744
 msgid "Cannot configure LightDM"
 msgstr "No se puede configurar LightDM"
 
-#: src/modules/displaymanager/main.py:737
+#: src/modules/displaymanager/main.py:745
 msgid "No LightDM greeter installed."
 msgstr "No está instalado el menú de bienvenida LightDM"
 
-#: src/modules/displaymanager/main.py:768
+#: src/modules/displaymanager/main.py:776
 msgid "Cannot write SLIM configuration file"
 msgstr "No se puede escribir el archivo de configuración de SLIM"
 
-#: src/modules/displaymanager/main.py:769
+#: src/modules/displaymanager/main.py:777
 msgid "SLIM config file {!s} does not exist"
 msgstr "El archivo de configuración {!s} de SLIM no existe"
 
-#: src/modules/displaymanager/main.py:895
+#: src/modules/displaymanager/main.py:903
 msgid "No display managers selected for the displaymanager module."
 msgstr ""
 "No se ha seleccionado ningún gestor de pantalla para el modulo "
 "displaymanager"
 
-#: src/modules/displaymanager/main.py:896
+#: src/modules/displaymanager/main.py:904
 msgid ""
 "The displaymanagers list is empty or undefined in bothglobalstorage and "
 "displaymanager.conf."
@@ -215,7 +218,7 @@ msgstr ""
 "La lista de gestores de ventanas está  vacía o no definida en ambos, el "
 "almacenamiento y el archivo de su configuración  - displaymanager.conf -"
 
-#: src/modules/displaymanager/main.py:978
+#: src/modules/displaymanager/main.py:986
 msgid "Display manager configuration was incomplete"
 msgstr "La configuración del gestor de pantalla estaba incompleta"
 

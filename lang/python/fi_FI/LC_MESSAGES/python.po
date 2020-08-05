@@ -11,7 +11,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-15 13:39+0200\n"
+"POT-Creation-Date: 2020-06-18 15:42+0200\n"
 "PO-Revision-Date: 2017-08-09 10:34+0000\n"
 "Last-Translator: Kimmo Kujansuu <mrkujansuu@gmail.com>, 2020\n"
 "Language-Team: Finnish (Finland) (https://www.transifex.com/calamares/teams/20061/fi_FI/)\n"
@@ -29,10 +29,10 @@ msgstr "Määritä GRUB."
 msgid "Mounting partitions."
 msgstr "Yhdistä osiot."
 
-#: src/modules/mount/main.py:145 src/modules/initcpiocfg/main.py:205
+#: src/modules/mount/main.py:150 src/modules/initcpiocfg/main.py:205
 #: src/modules/initcpiocfg/main.py:209
 #: src/modules/luksopenswaphookcfg/main.py:95
-#: src/modules/luksopenswaphookcfg/main.py:99 src/modules/rawfs/main.py:171
+#: src/modules/luksopenswaphookcfg/main.py:99 src/modules/rawfs/main.py:173
 #: src/modules/initramfscfg/main.py:94 src/modules/initramfscfg/main.py:98
 #: src/modules/openrcdmcryptcfg/main.py:78
 #: src/modules/openrcdmcryptcfg/main.py:82 src/modules/fstab/main.py:332
@@ -41,8 +41,8 @@ msgstr "Yhdistä osiot."
 msgid "Configuration Error"
 msgstr "Määritysvirhe"
 
-#: src/modules/mount/main.py:146 src/modules/initcpiocfg/main.py:206
-#: src/modules/luksopenswaphookcfg/main.py:96 src/modules/rawfs/main.py:172
+#: src/modules/mount/main.py:151 src/modules/initcpiocfg/main.py:206
+#: src/modules/luksopenswaphookcfg/main.py:96 src/modules/rawfs/main.py:174
 #: src/modules/initramfscfg/main.py:95 src/modules/openrcdmcryptcfg/main.py:79
 #: src/modules/fstab/main.py:333
 msgid "No partitions are defined for <pre>{!s}</pre> to use."
@@ -107,40 +107,40 @@ msgstr "Kuvan purkaminen {}/{}, tiedosto {}/{}"
 msgid "Starting to unpack {}"
 msgstr "Pakkauksen purkaminen alkaa {}"
 
-#: src/modules/unpackfs/main.py:326 src/modules/unpackfs/main.py:432
+#: src/modules/unpackfs/main.py:326 src/modules/unpackfs/main.py:448
 msgid "Failed to unpack image \"{}\""
 msgstr "Kuvan purkaminen epäonnistui \"{}\""
 
-#: src/modules/unpackfs/main.py:399
+#: src/modules/unpackfs/main.py:415
 msgid "No mount point for root partition"
-msgstr "Ei liitoskohtaa juuri root-osiolle"
+msgstr "Ei liitoskohtaa juuri root osiolle"
 
-#: src/modules/unpackfs/main.py:400
+#: src/modules/unpackfs/main.py:416
 msgid "globalstorage does not contain a \"rootMountPoint\" key, doing nothing"
 msgstr "globalstorage ei sisällä \"rootMountPoint\" avainta, eikä tee mitään"
 
-#: src/modules/unpackfs/main.py:405
+#: src/modules/unpackfs/main.py:421
 msgid "Bad mount point for root partition"
 msgstr "Huono kiinnityspiste root-osioon"
 
-#: src/modules/unpackfs/main.py:406
+#: src/modules/unpackfs/main.py:422
 msgid "rootMountPoint is \"{}\", which does not exist, doing nothing"
 msgstr "rootMountPoint on \"{}\", jota ei ole, eikä tee mitään"
 
-#: src/modules/unpackfs/main.py:422 src/modules/unpackfs/main.py:426
-#: src/modules/unpackfs/main.py:446
+#: src/modules/unpackfs/main.py:438 src/modules/unpackfs/main.py:442
+#: src/modules/unpackfs/main.py:462
 msgid "Bad unsquash configuration"
 msgstr "Huono epäpuhdas kokoonpano"
 
-#: src/modules/unpackfs/main.py:423
+#: src/modules/unpackfs/main.py:439
 msgid "The filesystem for \"{}\" ({}) is not supported by your current kernel"
 msgstr "Tiedostojärjestelmä \"{}\" ({}) ei tue sinun nykyistä kerneliä "
 
-#: src/modules/unpackfs/main.py:427
+#: src/modules/unpackfs/main.py:443
 msgid "The source filesystem \"{}\" does not exist"
 msgstr "Lähde tiedostojärjestelmää \"{}\" ei ole olemassa"
 
-#: src/modules/unpackfs/main.py:433
+#: src/modules/unpackfs/main.py:449
 msgid ""
 "Failed to find unsquashfs, make sure you have the squashfs-tools package "
 "installed"
@@ -148,55 +148,55 @@ msgstr ""
 "Ei löytynyt unsquashfs, varmista, että sinulla on squashfs-tools paketti "
 "asennettuna"
 
-#: src/modules/unpackfs/main.py:447
+#: src/modules/unpackfs/main.py:463
 msgid "The destination \"{}\" in the target system is not a directory"
 msgstr "Kohdejärjestelmän \"{}\" kohde ei ole hakemisto"
 
-#: src/modules/displaymanager/main.py:515
+#: src/modules/displaymanager/main.py:523
 msgid "Cannot write KDM configuration file"
 msgstr "KDM-määritystiedostoa ei voi kirjoittaa"
 
-#: src/modules/displaymanager/main.py:516
+#: src/modules/displaymanager/main.py:524
 msgid "KDM config file {!s} does not exist"
 msgstr "KDM-määritystiedostoa {!s} ei ole olemassa"
 
-#: src/modules/displaymanager/main.py:577
+#: src/modules/displaymanager/main.py:585
 msgid "Cannot write LXDM configuration file"
 msgstr "LXDM-määritystiedostoa ei voi kirjoittaa"
 
-#: src/modules/displaymanager/main.py:578
+#: src/modules/displaymanager/main.py:586
 msgid "LXDM config file {!s} does not exist"
 msgstr "LXDM-määritystiedostoa {!s} ei ole olemassa"
 
-#: src/modules/displaymanager/main.py:661
+#: src/modules/displaymanager/main.py:669
 msgid "Cannot write LightDM configuration file"
 msgstr "LightDM-määritystiedostoa ei voi kirjoittaa"
 
-#: src/modules/displaymanager/main.py:662
+#: src/modules/displaymanager/main.py:670
 msgid "LightDM config file {!s} does not exist"
 msgstr "LightDM-määritystiedostoa {!s} ei ole olemassa"
 
-#: src/modules/displaymanager/main.py:736
+#: src/modules/displaymanager/main.py:744
 msgid "Cannot configure LightDM"
 msgstr "LightDM määritysvirhe"
 
-#: src/modules/displaymanager/main.py:737
+#: src/modules/displaymanager/main.py:745
 msgid "No LightDM greeter installed."
 msgstr "LightDM ei ole asennettu."
 
-#: src/modules/displaymanager/main.py:768
+#: src/modules/displaymanager/main.py:776
 msgid "Cannot write SLIM configuration file"
 msgstr "SLIM-määritystiedostoa ei voi kirjoittaa"
 
-#: src/modules/displaymanager/main.py:769
+#: src/modules/displaymanager/main.py:777
 msgid "SLIM config file {!s} does not exist"
 msgstr "SLIM-määritystiedostoa {!s} ei ole olemassa"
 
-#: src/modules/displaymanager/main.py:895
+#: src/modules/displaymanager/main.py:903
 msgid "No display managers selected for the displaymanager module."
 msgstr "Displaymanager-moduulia varten ei ole valittu näyttönhallintaa."
 
-#: src/modules/displaymanager/main.py:896
+#: src/modules/displaymanager/main.py:904
 msgid ""
 "The displaymanagers list is empty or undefined in bothglobalstorage and "
 "displaymanager.conf."
@@ -204,7 +204,7 @@ msgstr ""
 "Displaymanager-luettelo on tyhjä tai määrittelemätön, sekä globalstorage, "
 "että displaymanager.conf tiedostossa."
 
-#: src/modules/displaymanager/main.py:978
+#: src/modules/displaymanager/main.py:986
 msgid "Display manager configuration was incomplete"
 msgstr "Näytönhallinnan kokoonpano oli puutteellinen"
 
@@ -283,7 +283,7 @@ msgstr "Määritä Plymouthin teema"
 #: src/modules/packages/main.py:59 src/modules/packages/main.py:68
 #: src/modules/packages/main.py:78
 msgid "Install packages."
-msgstr "Asenna paketteja."
+msgstr "Asenna paketit."
 
 #: src/modules/packages/main.py:66
 #, python-format

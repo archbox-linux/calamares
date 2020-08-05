@@ -67,13 +67,17 @@ ViewManager::ViewManager( QObject* parent )
     : QAbstractListModel( parent )
     , m_currentStep( -1 )
     , m_widget( new QWidget() )
+    , m_panelSides( Qt::Horizontal | Qt::Vertical )
 {
     Q_ASSERT( !s_instance );
 
     QBoxLayout* mainLayout = new QVBoxLayout;
+    mainLayout->setContentsMargins( 0, 0, 0, 0 );
+    m_widget->setObjectName( "viewManager" );
     m_widget->setLayout( mainLayout );
 
     m_stack = new QStackedWidget( m_widget );
+    m_stack->setObjectName( "viewManagerStack" );
     m_stack->setContentsMargins( 0, 0, 0, 0 );
     mainLayout->addWidget( m_stack );
 
@@ -125,15 +129,19 @@ ViewManager::insertViewStep( int before, ViewStep* step )
     {
         cError() << "ViewStep" << step->moduleInstanceKey() << "has no widget.";
     }
-
-    QLayout* layout = step->widget()->layout();
-    if ( layout )
+    else
     {
-        layout->setContentsMargins( 0, 0, 0, 0 );
+        QLayout* layout = step->widget()->layout();
+        if ( layout )
+        {
+            const auto margins = step->widgetMargins( m_panelSides );
+            layout->setContentsMargins( margins.width(), margins.height(), margins.width(), margins.height() );
+        }
+
+        m_stack->insertWidget( before, step->widget() );
+        m_stack->setCurrentIndex( 0 );
+        step->widget()->setFocus();
     }
-    m_stack->insertWidget( before, step->widget() );
-    m_stack->setCurrentIndex( 0 );
-    step->widget()->setFocus();
     emit endInsertRows();
 }
 
@@ -181,7 +189,7 @@ ViewManager::onInstallationFailed( const QString& message, const QString& detail
     msgBox->show();
 
     cDebug() << "Calamares will quit when the dialog closes.";
-    connect( msgBox, &QMessageBox::buttonClicked, [msgBox]( QAbstractButton* button ) {
+    connect( msgBox, &QMessageBox::buttonClicked, [ msgBox ]( QAbstractButton* button ) {
         if ( msgBox->buttonRole( button ) == QMessageBox::ButtonRole::YesRole )
         {
             // TODO: host and port should be configurable
@@ -224,7 +232,9 @@ ViewManager::onInitFailed( const QStringList& modules )
         detailString = details.join( QString() );
     }
 
-    insertViewStep( 0, new BlankViewStep( title, description.arg( *Calamares::Branding::ProductName ), detailString ) );
+    insertViewStep(
+        0,
+        new BlankViewStep( title, description.arg( Calamares::Branding::instance()->productName() ), detailString ) );
 }
 
 void
@@ -333,15 +343,16 @@ ViewManager::next()
                       "to undo these changes.</strong>" );
             QString confirm = settings->isSetupMode() ? tr( "&Set up now" ) : tr( "&Install now" );
 
-            int reply = QMessageBox::question(
-                m_widget,
-                title,
-                question.arg( *Calamares::Branding::ShortProductName, *Calamares::Branding::ShortVersionedName ),
-                confirm,
-                tr( "Go &back" ),
-                QString(),
-                0 /* default first button, i.e. confirm */,
-                1 /* escape is second button, i.e. cancel */ );
+            const auto* branding = Calamares::Branding::instance();
+            int reply
+                = QMessageBox::question( m_widget,
+                                         title,
+                                         question.arg( branding->shortProductName(), branding->shortVersionedName() ),
+                                         confirm,
+                                         tr( "Go &back" ),
+                                         QString(),
+                                         0 /* default first button, i.e. confirm */,
+                                         1 /* escape is second button, i.e. cancel */ );
             if ( reply == 1 )
             {
                 return;

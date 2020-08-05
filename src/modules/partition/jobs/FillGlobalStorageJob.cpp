@@ -91,6 +91,12 @@ mapForPartition( Partition* partition, const QString& uuid )
 {
     QVariantMap map;
     map[ "device" ] = partition->partitionPath();
+    map[ "partlabel" ] = partition->label();
+    map[ "partuuid" ] = partition->uuid();
+#ifdef WITH_KPMCORE42API
+    map[ "parttype" ] = partition->type();
+    map[ "partattrs" ] = partition->attributes();
+#endif
     map[ "mountPoint" ] = PartitionInfo::mountPoint( partition );
     map[ "fsName" ] = userVisibleFS( partition->fileSystem() );
     map[ "fs" ] = untranslatedFS( partition->fileSystem() );
@@ -107,7 +113,9 @@ mapForPartition( Partition* partition, const QString& uuid )
     Logger::CDebug deb;
     using TR = Logger::DebugRow< const char* const, const QString& >;
     deb << Logger::SubEntry << "mapping for" << partition->partitionPath() << partition->deviceNode()
-        << TR( "mtpoint:", PartitionInfo::mountPoint( partition ) ) << TR( "fs:", map[ "fs" ].toString() )
+        << TR( "partlabel", map[ "partlabel" ].toString() ) << TR( "partuuid", map[ "partuuid" ].toString() )
+        << TR( "parttype", map[ "partype" ].toString() ) << TR( "partattrs", map[ "partattrs" ].toString() )
+        << TR( "mountPoint:", PartitionInfo::mountPoint( partition ) ) << TR( "fs:", map[ "fs" ].toString() )
         << TR( "fsName", map[ "fsName" ].toString() ) << TR( "uuid", uuid )
         << TR( "claimed", map[ "claimed" ].toString() );
 
@@ -163,7 +171,7 @@ FillGlobalStorageJob::prettyDescription() const
                 if ( mountPoint == "/" )
                 {
                     lines.append( tr( "Install %1 on <strong>new</strong> %2 system partition." )
-                                      .arg( *Calamares::Branding::ShortProductName )
+                                      .arg( Calamares::Branding::instance()->shortProductName() )
                                       .arg( fsType ) );
                 }
                 else
@@ -180,7 +188,7 @@ FillGlobalStorageJob::prettyDescription() const
                 {
                     lines.append( tr( "Install %2 on %3 system partition <strong>%1</strong>." )
                                       .arg( path )
-                                      .arg( *Calamares::Branding::ShortProductName )
+                                      .arg( Calamares::Branding::instance()->shortProductName() )
                                       .arg( fsType ) );
                 }
                 else
